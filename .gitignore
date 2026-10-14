@@ -1,0 +1,35 @@
+# ── API Keys & Secrets ──────────────────────────────────────
+*.key
+.env
+.env.local
+.env.development
+.env.production
+config.local.js
+sahayak-config.js
+secrets.js
+
+# ── Node / Dev tooling (not used in core build) ─────────────
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# ── OS files ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ──────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# ── Build artefacts ─────────────────────────────────────────
+dist/
+build/
+*.zip
+
+# ── Keep docs, assets, and source ───────────────────────────
+!docs/
+!assets/
+!lib/

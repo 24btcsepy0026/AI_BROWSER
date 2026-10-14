@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahayak</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2=family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+
+  <!-- €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
+       HEADER
+  €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ -->
+  <header class="sahayak-header">
+    <div class="header-brand">
+      <img src="../assets/icons/icon48.png" alt="Sahayak" class="header-logo" />
+      <span class="header-title">Sahayak</span>
+    </div>
+
+    <div class="header-controls">
+      <!-- Language Toggle -->
+      <button id="lang-toggle" class="lang-toggle" title="Switch language" aria-label="Toggle language">
+        <span id="lang-label">EN</span>
+      </button>
+
+      <!-- Settings link -->
+      <button id="settings-btn" class="icon-btn" title="Settings" aria-label="Open Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
+       NAV TABS
+  €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ -->
+  <nav class="sahayak-nav" role="tablist" aria-label="Main navigation">
+    <button class="nav-tab active" id="tab-home" role="tab" aria-selected="true" aria-controls="view-home" data-view="home">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Home
+    </button>
+    <button class="nav-tab" id="tab-chat" role="tab" aria-selected="false" aria-controls="view-chat" data-view="chat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Chat
+    </button>
+    <button class="nav-tab" id="tab-agent" role="tab" aria-selected="false" aria-controls="view-agent" data-view="agent">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Agent
+    </button>
+    <button class="nav-tab" id="tab-skills" role="tab" aria-selected="false" aria-controls="view-skills" data-view="skills">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Skills
+    </button>
+  </nav>
+
+  <!-- €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€
+       MAIN VIEWS
+  €€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€ -->
+  <main class="sahayak-main">
+
+    <!-- €‚€‚ ERROR BANNER €‚€‚ -->
+    <div id="error-banner" class="error-banner hidden" role="alert" aria-live="assertive"></div>
+
+    <!-- €‚€‚ HOME VIEW €‚€‚ -->
+    <section id="view-home" class="view active" role="tabpanel" aria-labelledby="tab-home">
+      <div class="view-inner">
+
+        <!-- Welcome state (shown when no content loaded yet) -->
+        <div id="home-welcome" class="welcome-card">
+          <div class="welcome-icon">
+            <img src="../assets/icons/icon128.png" alt="" aria-hidden="true" />
+          </div>
+          <h1 class="welcome-title">Hi, I'm Sahayak</h1>
+          <p class="welcome-subtitle">Your AI browser assistant. Navigate to any article or YouTube video to get started.</p>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions-grid" id="quick-actions">
+          <button class="action-card" id="btn-summarise" aria-label="Summarise the current page">
+            <span class="action-icon">€€</span>
+            <span class="action-label">Summarise</span>
+            <span class="action-desc">TL;DR + key points</span>
+          </button>
+
+          <button class="action-card" id="btn-screenshot" aria-label="Take a screenshot and ask a question">
+            <span class="action-icon">€</span>
+            <span class="action-label">Screenshot</span>
+            <span class="action-desc">Ask about visuals</span>
+          </button>
+
+          <button class="action-card" id="btn-explain" aria-label="Explain selected text">
+            <span class="action-icon">€™</span>
+            <span class="action-label">Explain</span>
+            <span class="action-desc">Simplify selected text</span>
+          </button>
+
+          <button class="action-card" id="btn-translate" aria-label="Translate selected text">
+            <span class="action-icon">’</span>
+            <span class="action-label">Translate</span>
+            <span class="action-desc">Selected text</span>
+          </button>
+
+          <button class="action-card" id="btn-draft" aria-label="Draft a reply to selected content">
+            <span class="action-icon">“€</span>
+            <span class="action-label">Draft Reply</span>
+            <span class="action-desc">From selected text</span>
+          </button>
+
+          <button class="action-card" id="btn-find" aria-label="Find an element on the page">
+            <span class="action-icon">€</span>
+            <span class="action-label">Find It</span>
+            <span class="action-desc">Locate page elements</span>
+          </button>
+        </div>
+
+        <!-- Output area for Home actions -->
+        <div id="home-output" class="output-area hidden">
+          <div class="output-header">
+            <span id="home-output-title" class="output-title"></span>
+            <button id="home-output-copy" class="icon-btn copy-btn" title="Copy to clipboard" aria-label="Copy output">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+          <div id="home-output-content" class="output-content"></div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="home-loading" class="loading-state hidden" aria-live="polite">
+          <div class="spinner"></div>
+          <p id="home-loading-label">Thinking‚</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- €‚€‚ CHAT VIEW €‚€‚ -->
+    <section id="view-chat" class="view hidden" role="tabpanel" aria-labelledby="tab-chat">
+      <div class="view-inner chat-view-inner">
+        <div id="chat-messages" class="chat-messages" aria-live="polite" aria-label="Chat messages"></div>
+        <div class="chat-input-row">
+          <textarea
+            id="chat-input"
+            class="chat-input"
+            placeholder="Ask something about this page‚"
+            rows="2"
+            aria-label="Chat input"
+          ></textarea>
+          <button id="chat-send" class="send-btn" aria-label="Send message">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- €‚€‚ AGENT VIEW €‚€‚ -->
+    <section id="view-agent" class="view hidden" role="tabpanel" aria-labelledby="tab-agent">
+      <div class="view-inner">
+        <div class="agent-task-input-row">
+          <input
+            id="agent-task-input"
+            type="text"
+            class="task-input"
+            placeholder="Describe a task for Sahayak to do‚"
+            aria-label="Agent task"
+          />
+          <button id="agent-start-btn" class="primary-btn" aria-label="Start agent task">Start</button>
+        </div>
+
+        <!-- Approval card (hidden until agent proposes action) -->
+        <div id="agent-approval-card" class="approval-card hidden">
+          <div class="approval-header">
+            <span class="approval-step-badge" id="approval-step-label">Step 1</span>
+            <span class="approval-tag">Awaiting Approval</span>
+          </div>
+          <div class="approval-body">
+            <div class="approval-row"><span class="approval-key">Action</span><span id="approval-action" class="approval-val"></span></div>
+            <div class="approval-row"><span class="approval-key">Target</span><span id="approval-target" class="approval-val"></span></div>
+            <div class="approval-row"><span class="approval-key">Value</span><span id="approval-value" class="approval-val"></span></div>
+            <div class="approval-row"><span class="approval-key">Reason</span><span id="approval-reason" class="approval-val"></span></div>
+          </div>
+          <div class="approval-actions">
+            <button id="btn-approve" class="approve-btn">“€ Approve</button>
+            <button id="btn-skip"    class="skip-btn">€ Skip</button>
+            <button id="btn-dry-run" class="dry-btn">€ Dry Run</button>
+            <button id="btn-stop"    class="stop-btn">€“ Stop</button>
+          </div>
+          <!-- Extra confirmation for consequential actions -->
+          <div id="consequential-warning" class="consequential-warning hidden">
+             This is a consequential action (Submit / Pay / Send).
+            <button id="btn-confirm-approve" class="approve-btn">Yes, proceed</button>
+          </div>
+        </div>
+
+        <!-- Action Log -->
+        <div id="action-log-section" class="action-log-section hidden">
+          <h2 class="section-title">Action Log</h2>
+          <ul id="action-log-list" class="action-log-list" aria-label="Agent action log"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- €‚€‚ SKILLS VIEW €‚€‚ -->
+    <section id="view-skills" class="view hidden" role="tabpanel" aria-labelledby="tab-skills">
+      <div class="view-inner">
+        <div class="skills-header-row">
+          <h2 class="section-title">My Skills</h2>
+          <div class="skills-actions">
+            <button id="btn-import-skills" class="secondary-btn" aria-label="Import skills">Import</button>
+            <button id="btn-export-skills" class="secondary-btn" aria-label="Export skills">Export</button>
+            <button id="btn-new-skill"     class="primary-btn"   aria-label="Create new skill">+ New</button>
+          </div>
+        </div>
+        <ul id="skills-list" class="skills-list" aria-label="Saved skills"></ul>
+        <input type="file" id="skills-file-input" accept=".json" style="display:none" aria-hidden="true" />
+      </div>
+    </section>
+
+  </main><!-- /.sahayak-main -->
+
+  <script src="sidepanel.js" type="module"></script>
+</body>
+</html>

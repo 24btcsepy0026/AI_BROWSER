@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahayak â€“ Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <div class="settings-container">
+
+    <header class="settings-header">
+      <img src="../assets/icons/icon48.png" alt="Sahayak" class="settings-logo" />
+      <div>
+        <h1 class="settings-title">Sahayak Settings</h1>
+        <p class="settings-subtitle">Configure your AI browser assistant</p>
+      </div>
+    </header>
+
+    <!-- â”€â”€ API Keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="settings-section">
+      <h2 class="section-heading">API Keys</h2>
+      <p class="section-note">Your keys are stored only on this device and never sent to any server other than the AI provider.</p>
+
+      <div class="field-group">
+        <label class="field-label" for="gemini-key">Gemini API Key <span class="required">*</span></label>
+        <div class="input-row">
+          <input type="password" id="gemini-key" class="field-input" placeholder="AIzaâ€¦" autocomplete="off" spellcheck="false" />
+          <button class="toggle-vis-btn" data-target="gemini-key" aria-label="Show/hide Gemini key" title="Show/Hide">ðŸ‘</button>
+        </div>
+        <p class="field-hint">Get a free key at <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a></p>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="groq-key">Groq API Key <span class="optional">(optional fallback)</span></label>
+        <div class="input-row">
+          <input type="password" id="groq-key" class="field-input" placeholder="gsk_â€¦" autocomplete="off" spellcheck="false" />
+          <button class="toggle-vis-btn" data-target="groq-key" aria-label="Show/hide Groq key" title="Show/Hide">ðŸ‘</button>
+        </div>
+        <p class="field-hint">Get a free key at <a href="https://console.groq.com" target="_blank">console.groq.com</a></p>
+      </div>
+    </section>
+
+    <!-- â”€â”€ Preferences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <section class="settings-section">
+      <h2 class="section-heading">Preferences</h2>
+
+      <div class="field-group">
+        <label class="field-label" for="lang-select">Default Language</label>
+        <select id="lang-select" class="field-select">
+          <option value="en">English</option>
+          <option value="hinglish">Hinglish (Hindi + English)</option>
+          <option value="tanglish">Tanglish (Tamil + English = TAN)</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="tone-select">Default Tone</label>
+        <select id="tone-select" class="field-select">
+          <option value="professional">Professional</option>
+          <option value="casual">Casual</option>
+          <option value="friendly">Friendly</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- â”€â”€ Save Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div class="save-row">
+      <div id="save-status" class="save-status" aria-live="polite"></div>
+      <button id="save-btn" class="save-btn">Save Settings</button>
+    </div>
+
+  </div>
+  <script src="settings.js"></script>
+</body>
+</html>
