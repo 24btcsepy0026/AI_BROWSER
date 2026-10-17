@@ -3,11 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sahayak</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2=family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css" />
+  <title>Sahayak</title>  <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
 
@@ -64,7 +60,10 @@
   <main class="sahayak-main">
 
     <!-- €‚€‚ ERROR BANNER €‚€‚ -->
-    <div id="error-banner" class="error-banner hidden" role="alert" aria-live="assertive"></div>
+    <div id="error-banner" class="error-banner hidden" role="alert" aria-live="assertive">
+      <span id="error-banner-text"></span>
+      <button id="error-retry-btn" class="error-retry-btn hidden" aria-label="Retry">? Retry</button>
+    </div>
 
     <!-- €‚€‚ HOME VIEW €‚€‚ -->
     <section id="view-home" class="view active" role="tabpanel" aria-labelledby="tab-home">
@@ -220,7 +219,53 @@
       </div>
     </section>
 
-  </main><!-- /.sahayak-main -->
+      <!-- ???? SCREENSHOT PANEL (Slice 2.3) ???? -->
+    <div id="screenshot-panel" class="screenshot-panel hidden" role="dialog" aria-modal="true" aria-label="Screenshot and Ask">
+      <div class="screenshot-panel-header">
+        <span class="screenshot-panel-title">?? Screenshot &amp; Ask</span>
+        <button id="screenshot-close-btn" class="icon-btn" title="Close" aria-label="Close screenshot panel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Step 1: Preview + optional crop -->
+      <div id="screenshot-step-preview" class="screenshot-step">
+        <p class="screenshot-hint">Drag on the image to crop a region (optional)</p>
+        <div class="screenshot-canvas-wrapper" id="screenshot-canvas-wrapper">
+          <canvas id="screenshot-canvas" class="screenshot-canvas" aria-label="Screenshot preview"></canvas>
+          <canvas id="screenshot-crop-overlay" class="screenshot-crop-overlay" aria-hidden="true"></canvas>
+        </div>
+        <div class="screenshot-preview-actions">
+          <button id="screenshot-reset-crop-btn" class="secondary-btn hidden" aria-label="Reset crop selection">Reset Crop</button>
+          <button id="screenshot-use-btn" class="primary-btn" aria-label="Use this screenshot">Use This ?</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Ask a question -->
+      <div id="screenshot-step-ask" class="screenshot-step hidden">
+        <div class="screenshot-cropped-preview">
+          <img id="screenshot-final-img" class="screenshot-final-img" alt="Selected area" />
+        </div>
+        <textarea
+          id="screenshot-question"
+          class="screenshot-question-input"
+          placeholder="What do you want to know about this screenshot?"
+          rows="3"
+          aria-label="Question about screenshot"
+        ></textarea>
+        <div class="screenshot-ask-actions">
+          <button id="screenshot-back-btn" class="secondary-btn" aria-label="Back to preview">? Back</button>
+          <button id="screenshot-ask-btn" class="primary-btn" aria-label="Ask Sahayak about screenshot">Ask Sahayak ??</button>
+        </div>
+        <div id="screenshot-ask-loading" class="loading-state hidden" aria-live="polite">
+          <div class="spinner"></div>
+          <p>Analysing image...</p>
+        </div>
+        <div id="screenshot-answer" class="screenshot-answer hidden"></div>
+        <button id="screenshot-retry-btn" class="secondary-btn hidden" aria-label="Retry question">? Retry</button>
+      </div>
+    </div>
+</main><!-- /.sahayak-main -->
 
   <script src="sidepanel.js" type="module"></script>
 </body>

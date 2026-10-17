@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLangToggle();
   initErrorBanner();
   initMessageListener();
+  initChatView();
+  initScreenshotPanel();
 
   // Edge-case 1.3: warn if on an internal Chrome page
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -338,7 +340,21 @@ function initMessageListener() {
 }
 
 function handleContextAction(payload) {
-  console.log('[Sahayak] Context action received:', payload?.action);
+  if (!payload) return;
+  const { action, text, result, label, originalText } = payload;
+
+  // If result already processed (came from SW handler), display it
+  if (result) {
+    switchView('home');
+    showOutput(label || 'Result', result, {});
+    return;
+  }
+
+  // Otherwise, trigger the action now (panel was just opened from right-click)
+  if (action && text) {
+    switchView('home');
+    triggerContextAction(action, label || action, text);
+  }
 }
 
 function appendChatChunk(chunk) {}
@@ -419,20 +435,336 @@ async function handleSummarise() {
     showOutput(displayTitle, response.summary, { isYouTube: response.isYouTube, videoUrl: response.url });
   } catch (err) {
     console.error('[Sahayak] Summarise error:', err);
-    showError(err.message || 'Could not summarise this page.');
+    showError(err.message || 'Could not summarise this page.', () => handleSummarise());
   } finally {
     setLoading(false);
   }
 }
 
-async function handleScreenshot() { showError('Screenshot will be ready in Slice 2.3 Ã°Å¸â€œÂ¸'); }
-async function handleExplain()    { showError('Explain will be ready in Slice 2.2 Ã°Å¸â€™Â¡'); }
-async function handleTranslate()  { showError('Translate will be ready in Slice 2.2 Ã°Å¸Å’Â'); }
-async function handleDraft()      { showError('Draft Reply will be ready in Slice 2.2 Ã¢Å“ÂÃ¯Â¸Â'); }
+async function handleScreenshot() { openScreenshotPanel(); }
+async function handleExplain() { await triggerContextAction('sahayak-explain', 'Explanation'); }
+async function handleTranslate() { await triggerContextAction('sahayak-translate', 'Translation'); }
+async function handleDraft() { await triggerContextAction('sahayak-draft', 'Draft Reply'); }
 async function handleFind()       { showError('Find It will be ready in Slice 3.2 Ã°Å¸â€Â'); }
-async function handleChatSend()   { showError('Page Chat will be ready in Slice 2.1 Ã°Å¸â€™Â¬'); }
+async function handleChatSend() {
+  const chatInput = document.getElementById('chat-input');
+  const query = chatInput?.value?.trim();
+  if (!query) return;
+
+  appendChatMessage('user', query);
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+
+  const typingId = appendChatTyping();
+  try {
+    const response = await sendToSW('PAGE_CHAT', {
+      query,
+      history: state.chatHistory,
+      language: state.language,
+    });
+    removeTypingIndicator(typingId);
+    if (!response || !response.success) throw new Error(response?.error || 'Failed to get an answer.');
+    appendChatMessage('assistant', response.answer);
+    state.chatHistory.push({ role: 'user', content: query });
+    state.chatHistory.push({ role: 'assistant', content: response.answer });
+    if (state.chatHistory.length > 20) state.chatHistory = state.chatHistory.slice(-20);
+  } catch (err) {
+    removeTypingIndicator(typingId);
+    appendChatMessage('assistant', '⚠️ ' + (err.message || 'Could not answer. Please try again.'));
+  }
+}
 async function handleAgentStart() { showError('Agent Loop will be ready in Slice 3.3 Ã¢Å¡Â¡'); }
 
 async function sendAgentDecision(decision) {
   await sendToSW('AGENT_DECISION', { decision }).catch(showError);
+}
+// === Chat UI Helpers (Slice 2.1) ===
+
+function appendChatMessage(role, text) {
+  const container = document.getElementById("chat-messages");
+  if (!container) return;
+  const ph = container.querySelector(".chat-empty-state");
+  if (ph) ph.remove();
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble chat-bubble--" + role;
+  if (role === "assistant") { bubble.innerHTML = renderBasicMarkdown(text); }
+  else { bubble.textContent = text; }
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendChatTyping() {
+  const container = document.getElementById("chat-messages");
+  if (!container) return "typing-none";
+  const id = "typing-" + Date.now();
+  const el = document.createElement("div");
+  el.className = "chat-bubble chat-bubble--assistant chat-bubble--typing";
+  el.id = id;
+  el.innerHTML = "<span class=\"typing-dot\"></span><span class=\"typing-dot\"></span><span class=\"typing-dot\"></span>";
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return id;
+}
+
+function removeTypingIndicator(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+function initChatView() {
+  const c = document.getElementById("chat-messages");
+  if (!c || c.children.length > 0) return;
+  const empty = document.createElement("div");
+  empty.className = "chat-empty-state";
+  empty.textContent = "Ask anything about the current page...";
+  c.appendChild(empty);
+}
+
+// === Context Action Trigger (Slice 2.2) ===
+
+async function triggerContextAction(action, label, preselectedText) {
+  let selectedText = preselectedText || null;
+  if (!selectedText) {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tab = tabs[0];
+      if (tab && tab.id) {
+        const res = await chrome.tabs.sendMessage(tab.id, { type: "GET_SELECTION" }).catch(() => null);
+        if (res && res.text) selectedText = res.text;
+      }
+    } catch(e) {}
+  }
+  if (!selectedText || !selectedText.trim()) {
+    showError("To use " + label + ", please select some text on the page first.");
+    return;
+  }
+  clearError();
+  setLoading(true, "Running " + label + "...");
+  state.lastAction = action;
+  switchView("home");
+  const wEl = document.getElementById("home-welcome");
+  if (wEl) wEl.classList.add("hidden");
+  try {
+    const response = await sendToSW("CONTEXT_ACTION_HANDLE", { action, text: selectedText, language: state.language });
+    if (!response || !response.success) throw new Error((response && response.error) || label + " failed.");
+    showOutput(label, response.result, {});
+  } catch (err) {
+    showError(err.message || label + " failed.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ============================================================
+// Screenshot Panel Controller (Slice 2.3)
+// ============================================================
+
+// Screenshot state
+const ssState = {
+  base64Full: null,      // raw full screenshot base64
+  base64Final: null,     // cropped (or full) base64 to send
+  cropRect: null,        // { x, y, w, h } in canvas coords
+  isDragging: false,
+  dragStart: null,
+};
+
+function openScreenshotPanel() {
+  const panel = document.getElementById('screenshot-panel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  // Reset state
+  ssState.base64Full = null;
+  ssState.base64Final = null;
+  ssState.cropRect = null;
+  // Show step 1
+  document.getElementById('screenshot-step-preview')?.classList.remove('hidden');
+  document.getElementById('screenshot-step-ask')?.classList.add('hidden');
+  document.getElementById('screenshot-reset-crop-btn')?.classList.add('hidden');
+  document.getElementById('screenshot-answer')?.classList.add('hidden');
+  document.getElementById('screenshot-retry-btn')?.classList.add('hidden');
+  const qInput = document.getElementById('screenshot-question');
+  if (qInput) qInput.value = '';
+  // Capture and display screenshot
+  captureAndDisplay();
+}
+
+async function captureAndDisplay() {
+  const canvas = document.getElementById('screenshot-canvas');
+  const overlay = document.getElementById('screenshot-crop-overlay');
+  if (!canvas) return;
+  try {
+    const res = await sendToSW('CAPTURE_SCREENSHOT', {});
+    if (!res || !res.success) throw new Error(res?.error || 'Screenshot failed.');
+    ssState.base64Full = res.data.base64;
+
+    // Draw image onto canvas
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 320;
+      const scale = maxW / img.width;
+      canvas.width = maxW;
+      canvas.height = img.height * scale;
+      if (overlay) { overlay.width = canvas.width; overlay.height = canvas.height; }
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      ssState.base64Final = ssState.base64Full; // default to full
+      initCropDrag(canvas, overlay);
+    };
+    img.src = 'data:image/png;base64,' + res.data.base64;
+  } catch (err) {
+    showError(err.message || 'Could not capture screenshot.', () => captureAndDisplay());
+    document.getElementById('screenshot-panel')?.classList.add('hidden');
+  }
+}
+
+function initCropDrag(canvas, overlay) {
+  if (!canvas || !overlay) return;
+  const octx = overlay.getContext('2d');
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: Math.max(0, Math.min(canvas.width,  (clientX - rect.left) * scaleX)),
+      y: Math.max(0, Math.min(canvas.height, (clientY - rect.top)  * scaleY)),
+    };
+  }
+
+  function drawCropOverlay(rect) {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    octx.fillStyle = 'rgba(0,0,0,0.45)';
+    octx.fillRect(0, 0, overlay.width, overlay.height);
+    octx.clearRect(rect.x, rect.y, rect.w, rect.h);
+    octx.strokeStyle = '#7c6bef';
+    octx.lineWidth = 2;
+    octx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  }
+
+  overlay.onmousedown = overlay.ontouchstart = (e) => {
+    e.preventDefault();
+    ssState.isDragging = true;
+    ssState.dragStart = getPos(e);
+    ssState.cropRect = null;
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+  };
+
+  overlay.onmousemove = overlay.ontouchmove = (e) => {
+    if (!ssState.isDragging) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    const rect = {
+      x: Math.min(ssState.dragStart.x, pos.x),
+      y: Math.min(ssState.dragStart.y, pos.y),
+      w: Math.abs(pos.x - ssState.dragStart.x),
+      h: Math.abs(pos.y - ssState.dragStart.y),
+    };
+    if (rect.w > 5 && rect.h > 5) { drawCropOverlay(rect); ssState.cropRect = rect; }
+  };
+
+  overlay.onmouseup = overlay.ontouchend = () => {
+    ssState.isDragging = false;
+    if (ssState.cropRect && ssState.cropRect.w > 10 && ssState.cropRect.h > 10) {
+      document.getElementById('screenshot-reset-crop-btn')?.classList.remove('hidden');
+      // Crop base64
+      ssState.base64Final = cropCanvasToBase64(canvas, ssState.cropRect);
+    }
+  };
+}
+
+function cropCanvasToBase64(canvas, rect) {
+  const cropped = document.createElement('canvas');
+  cropped.width = rect.w;
+  cropped.height = rect.h;
+  cropped.getContext('2d').drawImage(canvas, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+  const dataUrl = cropped.toDataURL('image/png');
+  return dataUrl.split(',')[1];
+}
+
+function initScreenshotPanel() {
+  // Close button
+  document.getElementById('screenshot-close-btn')?.addEventListener('click', () => {
+    document.getElementById('screenshot-panel')?.classList.add('hidden');
+  });
+
+  // Reset crop
+  document.getElementById('screenshot-reset-crop-btn')?.addEventListener('click', () => {
+    ssState.cropRect = null;
+    ssState.base64Final = ssState.base64Full;
+    const overlay = document.getElementById('screenshot-crop-overlay');
+    overlay?.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+    document.getElementById('screenshot-reset-crop-btn')?.classList.add('hidden');
+  });
+
+  // Use this screenshot -> go to step 2
+  document.getElementById('screenshot-use-btn')?.addEventListener('click', () => {
+    if (!ssState.base64Final) { showError('Screenshot not ready yet.'); return; }
+    document.getElementById('screenshot-step-preview')?.classList.add('hidden');
+    document.getElementById('screenshot-step-ask')?.classList.remove('hidden');
+    const finalImg = document.getElementById('screenshot-final-img');
+    if (finalImg) finalImg.src = 'data:image/png;base64,' + ssState.base64Final;
+    document.getElementById('screenshot-answer')?.classList.add('hidden');
+    document.getElementById('screenshot-retry-btn')?.classList.add('hidden');
+  });
+
+  // Back button
+  document.getElementById('screenshot-back-btn')?.addEventListener('click', () => {
+    document.getElementById('screenshot-step-ask')?.classList.add('hidden');
+    document.getElementById('screenshot-step-preview')?.classList.remove('hidden');
+  });
+
+  // Ask button
+  document.getElementById('screenshot-ask-btn')?.addEventListener('click', () => askAboutScreenshot());
+
+  // Allow Enter to submit question
+  document.getElementById('screenshot-question')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askAboutScreenshot(); }
+  });
+
+  // Retry button
+  document.getElementById('screenshot-retry-btn')?.addEventListener('click', () => askAboutScreenshot());
+}
+
+async function askAboutScreenshot() {
+  const query = document.getElementById('screenshot-question')?.value?.trim();
+  if (!query) { showError('Please type a question about the screenshot.'); return; }
+  if (!ssState.base64Final) { showError('No screenshot available.'); return; }
+
+  const loading = document.getElementById('screenshot-ask-loading');
+  const answerEl = document.getElementById('screenshot-answer');
+  const retryBtn = document.getElementById('screenshot-retry-btn');
+  const askBtn = document.getElementById('screenshot-ask-btn');
+
+  loading?.classList.remove('hidden');
+  if (answerEl) answerEl.classList.add('hidden');
+  if (retryBtn) retryBtn.classList.add('hidden');
+  if (askBtn) askBtn.disabled = true;
+
+  try {
+    const res = await sendToSW('SCREENSHOT_ASK', {
+      base64: ssState.base64Final,
+      query,
+      language: state.language,
+    });
+
+    loading?.classList.add('hidden');
+    if (askBtn) askBtn.disabled = false;
+
+    if (!res || !res.success) throw new Error(res?.error || 'Could not analyse screenshot.');
+
+    if (answerEl) {
+      answerEl.innerHTML = renderBasicMarkdown(res.answer);
+      answerEl.classList.remove('hidden');
+    }
+    if (retryBtn) retryBtn.classList.remove('hidden');
+  } catch (err) {
+    loading?.classList.add('hidden');
+    if (askBtn) askBtn.disabled = false;
+    if (answerEl) {
+      answerEl.innerHTML = '<span class="error-inline">?? ' + (err.message || 'Failed to analyse.') + '</span>';
+      answerEl.classList.remove('hidden');
+    }
+    if (retryBtn) retryBtn.classList.remove('hidden');
+  }
 }

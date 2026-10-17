@@ -146,3 +146,118 @@ Provide a structured summary:
 2. **Chapter Notes:** Key topics with estimated timestamps in [MM:SS] format.
 3. **Key Takeaways:** 3 to 5 actionable bullet points.`;
 }
+// ============================================================
+// Chat Prompt Builder (Slice 2.1 - Grounded Page Chat)
+// ============================================================
+
+/**
+ * Builds the prompt for grounded page chat.
+ * Answers must come ONLY from the page content provided.
+ *
+ * @param {string} pageText - Clean page text (trimmed to 12000 chars)
+ * @param {Array<{role: string, content: string}>} history - Conversation history
+ * @param {string} query - User's current question
+ * @param {'en' | 'hinglish' | 'tanglish'} [lang='en'] - Preferred language
+ * @returns {string} Prompt string
+ */
+export function buildChatPrompt(pageText, history = [], query, lang = 'en') {
+  let langInstruction;
+  if (lang === 'hinglish') {
+    langInstruction = 'Respond in HINGLISH (Hindi + English code-mix in English letters, e.g. "Yeh page mein bataya gaya hai ki..."). Do NOT use Devanagari script.';
+  } else if (lang === 'tanglish' || lang === 'tan') {
+    langInstruction = 'Respond in TANGLISH (Tamil + English code-mix in English letters, e.g. "Indha page-la solranga..."). Do NOT use Tamil script.';
+  } else {
+    langInstruction = 'Respond in clear, concise English.';
+  }
+
+  const historyText = history
+    .map((h) => `${h.role === 'user' ? 'User' : 'Sahayak'}: ${h.content}`)
+    .join('\n');
+
+  // Trim page text to 12,000 chars from middle to preserve start/end context
+  const trimmedText = pageText.length > 12000
+    ? pageText.slice(0, 6000) + '\n...[content trimmed]...\n' + pageText.slice(-6000)
+    : pageText;
+
+  return `You are Sahayak, a grounded page assistant. ${langInstruction}
+
+RULES:
+- Answer ONLY from the page content provided below.
+- If the answer is not on the page, say EXACTLY: "This information is not available on the current page."
+- Do not guess, infer, or add any external information.
+- Keep answers concise and relevant.
+
+--- PAGE CONTENT ---
+${trimmedText}
+--- END ---
+
+${historyText ? `Previous conversation:\n${historyText}\n\n` : ''}User: ${query}
+Sahayak:`;
+}
+
+// ============================================================
+// Context-Action Prompt Builder (Slice 2.2)
+// ============================================================
+
+/**
+ * Builds the prompt for right-click context actions.
+ *
+ * @param {'sahayak-explain' | 'sahayak-translate' | 'sahayak-draft'} action
+ * @param {string} selectedText - Text the user selected
+ * @param {'en' | 'hinglish' | 'tanglish'} [lang='en'] - Preferred language
+ * @returns {string} Prompt string
+ */
+export function buildContextActionPrompt(action, selectedText, lang = 'en') {
+  let langInstruction;
+  if (lang === 'hinglish') {
+    langInstruction = 'Respond in HINGLISH (Hindi + English code-mix in English letters). No Devanagari script.';
+  } else if (lang === 'tanglish' || lang === 'tan') {
+    langInstruction = 'Respond in TANGLISH (Tamil + English code-mix in English letters). No Tamil script.';
+  } else {
+    langInstruction = 'Respond in clear, concise English.';
+  }
+
+  const truncated = selectedText.length > 3000 ? selectedText.slice(0, 3000) + '...' : selectedText;
+
+  if (action === 'sahayak-explain') {
+    return `You are Sahayak, an AI browser assistant. ${langInstruction}
+
+Explain the following selected text in simple terms. Break down jargon, acronyms, and complex ideas so anyone can understand it. Keep the explanation concise (2-4 sentences or a short bullet list).
+
+Selected text:
+"""
+${truncated}
+"""
+
+Explanation:`;
+  }
+
+  if (action === 'sahayak-translate') {
+    return `You are Sahayak, an AI browser assistant. ${langInstruction}
+
+Translate the following selected text to ${lang === 'hinglish' ? 'Hinglish (Hindi + English code-mix)' : lang === 'tanglish' || lang === 'tan' ? 'Tanglish (Tamil + English code-mix)' : 'simple, modern English (if it is in another language) or explain the meaning clearly if already in English'}.
+
+Selected text:
+"""
+${truncated}
+"""
+
+Translation:`;
+  }
+
+  if (action === 'sahayak-draft') {
+    return `You are Sahayak, an AI browser assistant. ${langInstruction}
+
+Draft a professional, friendly reply to the following selected text. Keep it concise (2-4 sentences). The reply should be ready to copy and send.
+
+Selected text:
+"""
+${truncated}
+"""
+
+Draft reply:`;
+  }
+
+  // Fallback
+  return `You are Sahayak. ${langInstruction}\n\nProcess the following text:\n"""\n${truncated}\n"""`;
+}

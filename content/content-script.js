@@ -20,7 +20,13 @@ if (typeof window.__sahayakContentScriptLoaded === 'undefined') {
       return true;
     }
 
-    if (msg && msg.type === 'SEEK_VIDEO') {
+    if (msg && msg.type === 'GET_SELECTION') {
+      var selText = window.getSelection ? window.getSelection().toString() : '';
+      sendResponse({ text: selText.trim() });
+      return true;
+    }
+
+        if (msg && msg.type === 'SEEK_VIDEO') {
       const video = document.querySelector('video');
       if (video && typeof msg.seconds === 'number') {
         video.currentTime = msg.seconds;

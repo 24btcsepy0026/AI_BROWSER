@@ -63,7 +63,7 @@ export async function callModel({ prompt, model = 'flash-lite', image = null, ti
   for (const modelId of modelsToTry) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -78,8 +78,13 @@ export async function callModel({ prompt, model = 'flash-lite', image = null, ti
         clearTimeout(timer);
 
         if (res.status === 429) {
-          console.warn(`[Sahayak ModelRouter] Model ${modelId} rate limited (429). Trying next candidate...`);
-          break; // break to try next model in modelsToTry
+          const backoffDelays = [2000, 4000, 8000];
+          const delay = backoffDelays[attempt] || 8000;
+          if (attempt < 2) {
+            await new Promise(function(r) { setTimeout(r, delay); }); // exponential back-off 2s/4s/8s
+            continue; // retry same model after delay
+          }
+          break; // all 3 attempts rate-limited: try next fallback model
         }
 
         if (!res.ok) {

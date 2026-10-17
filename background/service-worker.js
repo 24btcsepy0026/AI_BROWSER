@@ -16,7 +16,7 @@ import {
   setCachedItem,
 } from './storage-manager.js';
 import { callModel } from './model-router.js';
-import { buildSummaryPrompt, buildYouTubePrompt } from './prompt-builder.js';
+import { buildSummaryPrompt, buildYouTubePrompt, buildChatPrompt, buildContextActionPrompt } from './prompt-builder.js';
 
 // Safe broadcast helper that prevents "Receiving end does not exist" warnings
 function safeBroadcastMessage(message) {
@@ -161,9 +161,29 @@ async function handleMessage(msg, sender) {
       return await handleYouTubeSummarise(msg.payload);
     }
 
+    // Grounded Page Chat (Slice 2.1)
+    case 'PAGE_CHAT': {
+      return await handlePageChat(msg.payload);
+    }
+
+    // Context Menu Quick Actions (Slice 2.2)
+    case 'CONTEXT_ACTION_HANDLE': {
+      return await handleContextActionRequest(msg.payload);
+    }
+
     // Phase 1 handlers (Slice 1.4-1.7)
     // case 'SUMMARISE': return handleSummarise(msg.payload);
-    // case 'SUMMARISE_YOUTUBE': return handleYouTubeSummarise(msg.payload);
+    // Screenshot Capture (Slice 2.3)
+    case 'CAPTURE_SCREENSHOT': {
+      return await handleCaptureScreenshot(msg.payload);
+    }
+
+    // Screenshot Visual Q&A (Slice 2.3)
+    case 'SCREENSHOT_ASK': {
+      return await handleScreenshotAsk(msg.payload);
+    }
+
+        // case 'SUMMARISE_YOUTUBE': return handleYouTubeSummarise(msg.payload);
 
     default:
       console.warn('[Sahayak SW] Unknown message type:', msg.type);
@@ -445,3 +465,120 @@ async function handleYouTubeSummarise(payload = {}) {
 }
 
 globalThis.handleYouTubeSummarise = handleYouTubeSummarise;
+// ============================================================
+// Grounded Page Chat Handler (Slice 2.1)
+// ============================================================
+async function handlePageChat(payload = {}) {
+  const { query, history = [], tabId, language } = payload;
+
+  if (!query || typeof query !== 'string' || query.trim().length === 0) {
+    throw new Error('Please type a question before sending.');
+  }
+
+  const lang = language || (await getLanguage());
+
+  // Extract current page content
+  const extractRes = await extractContentFromTab(tabId || null);
+  if (!extractRes || !extractRes.success || !extractRes.data) {
+    throw new Error(extractRes?.error || 'Could not read the current page. Please make sure you are on a webpage.');
+  }
+
+  const { text: pageText } = extractRes.data;
+  if (!pageText || pageText.trim().length < 50) {
+    throw new Error('This page does not have enough readable content to chat about.');
+  }
+
+  const prompt = buildChatPrompt(pageText, history, query.trim(), lang);
+  const answer = await callModel({ prompt, model: 'flash-lite' });
+
+  return {
+    success: true,
+    answer,
+    query: query.trim(),
+  };
+}
+
+globalThis.handlePageChat = handlePageChat;
+
+// ============================================================
+// Context Action Request Handler (Slice 2.2)
+// Handles Explain / Translate / Draft from background process
+// ============================================================
+async function handleContextActionRequest(payload = {}) {
+  const { action, text, language } = payload;
+
+  if (!text || typeof text !== 'string' || text.trim().length === 0) {
+    throw new Error('No text was selected. Please select some text on the page and try again.');
+  }
+
+  if (!['sahayak-explain', 'sahayak-translate', 'sahayak-draft'].includes(action)) {
+    throw new Error(`Unknown context action: ${action}`);
+  }
+
+  const lang = language || (await getLanguage());
+  const prompt = buildContextActionPrompt(action, text.trim(), lang);
+  const result = await callModel({ prompt, model: 'flash-lite' });
+
+  const actionLabels = {
+    'sahayak-explain': 'Explanation',
+    'sahayak-translate': 'Translation',
+    'sahayak-draft': 'Draft Reply',
+  };
+
+  return {
+    success: true,
+    action,
+    label: actionLabels[action] || 'Result',
+    result,
+    originalText: text.trim(),
+  };
+}
+
+globalThis.handleContextActionRequest = handleContextActionRequest;
+
+// ============================================================
+// Screenshot Capture Handler (Slice 2.3)
+// ============================================================
+async function handleCaptureScreenshot(payload = {}) {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!tab || !tab.windowId) {
+    throw new Error('No active browser tab found to screenshot.');
+  }
+  if (isRestrictedUrl(tab.url)) {
+    throw new Error('Cannot screenshot Chrome internal pages. Please navigate to a normal website.');
+  }
+  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  const base64 = dataUrl.split(',')[1];
+  return { success: true, data: { base64, tabTitle: tab.title || '' } };
+}
+
+globalThis.handleCaptureScreenshot = handleCaptureScreenshot;
+
+// ============================================================
+// Screenshot Visual Q&A Handler (Slice 2.3)
+// ============================================================
+async function handleScreenshotAsk(payload = {}) {
+  const { base64, query, language } = payload;
+
+  if (!base64) {
+    throw new Error('No screenshot data provided.');
+  }
+  if (!query || query.trim().length === 0) {
+    throw new Error('Please enter a question about the screenshot.');
+  }
+
+  const lang = language || (await getLanguage());
+  let langInstruction = '';
+  if (lang === 'hinglish') {
+    langInstruction = ' Respond in HINGLISH (Hindi + English code-mix in English letters).';
+  } else if (lang === 'tanglish' || lang === 'tan') {
+    langInstruction = ' Respond in TANGLISH (Tamil + English code-mix in English letters).';
+  }
+
+  const prompt = You are Sahayak, an AI browser assistant. Look at this screenshot and answer the following question clearly and concisely:\n\n;
+  const answer = await callModel({ prompt, model: 'flash', image: base64 });
+
+  return { success: true, answer };
+}
+
+globalThis.handleScreenshotAsk = handleScreenshotAsk;
