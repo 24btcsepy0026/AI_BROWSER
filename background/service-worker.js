@@ -575,7 +575,7 @@ async function handleScreenshotAsk(payload = {}) {
     langInstruction = ' Respond in TANGLISH (Tamil + English code-mix in English letters).';
   }
 
-  const prompt = You are Sahayak, an AI browser assistant. Look at this screenshot and answer the following question clearly and concisely:\n\n;
+  const prompt = 'You are Sahayak, an AI browser assistant.' + langInstruction + ' Look at this screenshot and answer the following question clearly and concisely:\n\n' + query.trim();
   const answer = await callModel({ prompt, model: 'flash', image: base64 });
 
   return { success: true, answer };
