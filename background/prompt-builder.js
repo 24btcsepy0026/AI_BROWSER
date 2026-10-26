@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Sahayak - Prompt Builder (background/prompt-builder.js)
 // Constructs structured prompts for all AI tasks.
 // Handles language preferences: English, Hinglish, & Tanglish (TAN).
@@ -260,4 +260,72 @@ Draft reply:`;
 
   // Fallback
   return `You are Sahayak. ${langInstruction}\n\nProcess the following text:\n"""\n${truncated}\n"""`;
+}
+
+
+// ============================================================
+// Element Selection Prompt Builder (Slice 3.2 - Find It For Me)
+// ============================================================
+
+/**
+ * Builds the prompt for finding an element on the active page.
+ *
+ * @param {string} actionMapText - Numbered action map of interactive elements
+ * @param {string} query - Plain language request from user
+ * @returns {string} Prompt string
+ */
+export function buildElementSelectPrompt(actionMapText, query) {
+  return `You are Sahayak. The user wants to find a specific element.
+
+Numbered action map:
+${actionMapText}
+
+User question: "${query}"
+
+Return ONLY this JSON, no extra text:
+{"element": <number>, "reason": "<one line why>"}
+
+If no element matches: {"element": null, "reason": "No matching element found"}`;
+}
+
+
+// ============================================================
+// Agent Action Map Prompt Builder (Slice 3.3)
+// ============================================================
+
+/**
+ * Builds the planning prompt for the agent loop.
+ *
+ * @param {string} mapText - Action map of interactive elements
+ * @param {string} task - User's high-level task description
+ * @param {Array} log - Completed steps so far
+ * @returns {string} Prompt string
+ */
+export function buildActionMapPrompt(mapText, task, log = [], profile = null) {
+  const history = (log || [])
+    .map((l) => `Step ${l.step}: ${l.action} on [${l.element}] - ${l.decision}`)
+    .join('\n');
+
+  const profileContext = profile && (profile.name || (profile.skills && profile.skills.length > 0) || profile.college)
+    ? `\nUser Profile (stored on device for autofill):\n${JSON.stringify(profile, null, 2)}\n`
+    : '';
+
+  return `You are Sahayak agent, an AI browser assistant acting on behalf of the user.
+Your goal is to accomplish the following user task step-by-step:
+Task: "${task}"
+${profileContext}
+Numbered interactive elements currently visible on the page:
+${mapText}
+
+${history ? `Completed steps:\n${history}\n` : ''}
+Plan the SINGLE next best action to advance towards completing the task.
+If the task is already finished, or no further actions are needed, return "action": "done".
+
+Return ONLY valid JSON with no markdown formatting or additional prose:
+{
+  "action": "click" | "type" | "select" | "scroll" | "done",
+  "element": <number or null>,
+  "value": "<string or null>",
+  "reason": "<concise one sentence explanation>"
+}`;
 }

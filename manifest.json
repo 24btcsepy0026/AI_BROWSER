@@ -1,4 +1,4 @@
-{
+﻿{
   "manifest_version": 3,
   "name": "Sahayak",
   "description": "Your AI browser assistant - read, chat, see, and act on any webpage.",
@@ -57,6 +57,9 @@
       "js": [
         "lib/Readability.js",
         "content/readability-wrapper.js",
+        "content/element-scanner.js",
+        "content/element-badges.js",
+        "content/action-executor.js",
         "content/content-script.js"
       ],
       "run_at": "document_idle",

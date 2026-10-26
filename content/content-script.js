@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Sahayak - Content Script (content/content-script.js)
 // Injected into web pages by the service worker on demand.
 // Listens for messages and delegates to readability-wrapper.js
@@ -20,6 +20,12 @@ if (typeof window.__sahayakContentScriptLoaded === 'undefined') {
       return true;
     }
 
+    if (msg && msg.type === 'CHECK_SCANNER') {
+      var hasScanner = (typeof scanInteractiveElements === 'function') || (typeof window.scanInteractiveElements === 'function');
+      sendResponse({ ready: hasScanner });
+      return true;
+    }
+
     if (msg && msg.type === 'GET_SELECTION') {
       var selText = window.getSelection ? window.getSelection().toString() : '';
       sendResponse({ text: selText.trim() });
@@ -35,6 +41,37 @@ if (typeof window.__sahayakContentScriptLoaded === 'undefined') {
       } else {
         sendResponse({ success: false, error: 'No video element found on page.' });
       }
+      return true;
+    }
+
+    // Slice 3.1 & 3.2: Element scanning, badges, and highlighting
+    if (msg && msg.type === 'SCAN_ELEMENTS') {
+      handleScanElements(msg.payload || {}, sendResponse);
+      return true;
+    }
+
+    if (msg && msg.type === 'CLEAR_BADGES') {
+      if (typeof clearBadges === 'function') clearBadges();
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (msg && msg.type === 'EXECUTE_ACTION') {
+      var execFn = (typeof executeAction === 'function') ? executeAction : window.executeAction;
+      if (typeof execFn !== 'function') {
+        sendResponse({ success: false, error: 'Action executor is not available in page context.' });
+        return true;
+      }
+      execFn(msg.payload ? msg.payload.action : null, msg.payload ? msg.payload.elements : [])
+        .then(function(res) { sendResponse(res || { success: true }); })
+        .catch(function(err) { sendResponse({ success: false, error: err.message }); });
+      return true;
+    }
+
+    if (msg && msg.type === 'HIGHLIGHT_ELEMENT') {
+      var elementId = msg.elementId || (msg.payload && msg.payload.elementId);
+      var found = typeof highlightElement === 'function' ? highlightElement(elementId) : false;
+      sendResponse({ success: found, elementId: elementId });
       return true;
     }
   });
@@ -84,6 +121,39 @@ if (typeof window.__sahayakContentScriptLoaded === 'undefined') {
       sendResponse({
         success: false,
         error: err.message || 'Unknown extraction error',
+      });
+    }
+  }
+
+  /**
+   * Scans interactive elements, optionally renders badges, and formats action map.
+   * @param {Object} options
+   * @param {Function} sendResponse
+   */
+  function handleScanElements(options, sendResponse) {
+    try {
+      var scanFn = (typeof scanInteractiveElements === 'function') ? scanInteractiveElements : window.scanInteractiveElements;
+      if (typeof scanFn !== 'function') {
+        throw new Error('Element scanner is not available in page context.');
+      }
+      var elements = scanFn();
+      var renderFn = (typeof renderBadges === 'function') ? renderBadges : window.renderBadges;
+      if (options.renderBadges !== false && typeof renderFn === 'function') {
+        renderFn(elements);
+      }
+      var mapFn = (typeof buildActionMapText === 'function') ? buildActionMapText : window.buildActionMapText;
+      var actionMapText = (typeof mapFn === 'function') ? mapFn(elements) : '';
+      sendResponse({
+        success: true,
+        count: elements.length,
+        actionMapText: actionMapText,
+        elements: elements
+      });
+    } catch (err) {
+      console.error('[Sahayak] Scan elements failed:', err);
+      sendResponse({
+        success: false,
+        error: err.message || 'Unknown scan error'
       });
     }
   }

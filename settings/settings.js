@@ -18,13 +18,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       'geminiApiKey',
       'groqApiKey',
       'language',
-      'tone'
+      'tone',
+      'userProfile'
     ]);
 
     if (data.geminiApiKey) geminiInput.value = data.geminiApiKey;
     if (data.groqApiKey) groqInput.value = data.groqApiKey;
     if (data.language) langSelect.value = data.language;
     if (data.tone) toneSelect.value = data.tone;
+
+    // Load Profile fields
+    const profile = data.userProfile || {};
+    const nameEl = document.getElementById('profile-name');
+    const collegeEl = document.getElementById('profile-college');
+    const skillsEl = document.getElementById('profile-skills');
+    const githubEl = document.getElementById('profile-github');
+    const linkedinEl = document.getElementById('profile-linkedin');
+    const customEl = document.getElementById('profile-custom');
+
+    if (nameEl && profile.name) nameEl.value = profile.name;
+    if (collegeEl && profile.college) collegeEl.value = profile.college;
+    if (skillsEl && Array.isArray(profile.skills)) skillsEl.value = profile.skills.join(', ');
+    if (githubEl && profile.github) githubEl.value = profile.github;
+    if (linkedinEl && profile.linkedin) linkedinEl.value = profile.linkedin;
+    if (customEl && profile.customNotes) customEl.value = profile.customNotes;
   } catch (err) {
     console.error('[Sahayak Settings] Failed to load settings:', err);
     showStatus('Failed to load existing settings.', 'error');
@@ -56,12 +73,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveBtn.textContent = 'Saving...';
     clearStatus();
 
+    // Extract profile values
+    const profileName = document.getElementById('profile-name')?.value.trim() || '';
+    const profileCollege = document.getElementById('profile-college')?.value.trim() || '';
+    const rawSkills = document.getElementById('profile-skills')?.value || '';
+    const profileSkills = rawSkills.split(',').map(s => s.trim()).filter(Boolean);
+    const profileGithub = document.getElementById('profile-github')?.value.trim() || '';
+    const profileLinkedin = document.getElementById('profile-linkedin')?.value.trim() || '';
+    const profileCustom = document.getElementById('profile-custom')?.value.trim() || '';
+
+    const userProfile = {
+      name: profileName,
+      college: profileCollege,
+      skills: profileSkills,
+      github: profileGithub,
+      linkedin: profileLinkedin,
+      preferredLanguage: language,
+      preferredTone: tone,
+      customNotes: profileCustom,
+      customFields: {}
+    };
+
     try {
       await chrome.storage.local.set({
         geminiApiKey: geminiKey,
         groqApiKey: groqKey,
         language: language,
-        tone: tone
+        tone: tone,
+        userProfile: userProfile
       });
 
       // Notify runtime so sidepanel and service worker can sync immediately

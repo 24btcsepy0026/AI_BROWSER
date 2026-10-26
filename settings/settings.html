@@ -64,6 +64,43 @@
     </section>
 
     <!-- â”€â”€ Save Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    
+    <!-- ── User Profile (Slice 4.1) ────────────────── -->
+    <section class="settings-section">
+      <h2 class="section-heading">User Profile (Local Memory)</h2>
+      <p class="section-note">Stored strictly on your device. Used by Sahayak for autofilling forms and tailoring draft responses.</p>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-name">Full Name</label>
+        <input type="text" id="profile-name" class="field-input" placeholder="e.g. Ravi Kumar" autocomplete="name" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-college">College / University / Organization</label>
+        <input type="text" id="profile-college" class="field-input" placeholder="e.g. IIT Patna" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-skills">Skills (comma-separated)</label>
+        <input type="text" id="profile-skills" class="field-input" placeholder="e.g. Python, React, JavaScript, Machine Learning" />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-github">GitHub Profile URL</label>
+        <input type="url" id="profile-github" class="field-input" placeholder="https://github.com/..." />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-linkedin">LinkedIn Profile URL</label>
+        <input type="url" id="profile-linkedin" class="field-input" placeholder="https://linkedin.com/in/..." />
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="profile-custom">Custom Notes / Bio</label>
+        <textarea id="profile-custom" class="field-input" rows="2" style="resize:vertical; min-height:55px;" placeholder="e.g. 3rd year Computer Science undergraduate interested in AI engineering"></textarea>
+      </div>
+    </section>
+
     <div class="save-row">
       <div id="save-status" class="save-status" aria-live="polite"></div>
       <button id="save-btn" class="save-btn">Save Settings</button>

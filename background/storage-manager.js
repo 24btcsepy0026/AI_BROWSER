@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   MODEL_PROVIDER: 'modelProvider', // 'gemini' | 'groq'
   CACHED_SUMMARIES: 'cachedSummaries',
   SAVED_SKILLS: 'savedSkills',
+  USER_PROFILE: 'userProfile',
 };
 
 const DEFAULT_PREFERENCES = {
@@ -165,4 +166,108 @@ export async function setCachedItem(key, value, ttlMs = 30 * 60 * 1000) {
   } catch (err) {
     console.warn('[StorageManager] Failed to cache item:', err);
   }
+}
+
+// ============================================================
+// Local User Profile (Slice 4.1)
+// Stored strictly on device in chrome.storage.local
+// ============================================================
+
+export const DEFAULT_PROFILE = {
+  name: '',
+  college: '',
+  skills: [],
+  github: '',
+  linkedin: '',
+  preferredLanguage: 'en',
+  preferredTone: 'professional',
+  customFields: {},
+};
+
+/**
+ * Retrieves the local user profile.
+ * @returns {Promise<Object>}
+ */
+export async function getProfile() {
+  try {
+    const data = await chrome.storage.local.get(STORAGE_KEYS.USER_PROFILE);
+    return { ...DEFAULT_PROFILE, ...(data[STORAGE_KEYS.USER_PROFILE] || {}) };
+  } catch (err) {
+    return { ...DEFAULT_PROFILE };
+  }
+}
+
+/**
+ * Saves updates to the local user profile.
+ * @param {Object} profileUpdates
+ */
+export async function saveProfile(profileUpdates = {}) {
+  const current = await getProfile();
+  const next = { ...current, ...profileUpdates };
+  await chrome.storage.local.set({ [STORAGE_KEYS.USER_PROFILE]: next });
+  return next;
+}
+
+// ============================================================
+// One-Click Skills (Slice 4.2)
+// Built-in recipes + custom user skills
+// ============================================================
+
+export const DEFAULT_STARTER_SKILLS = [
+  {
+    id: 'skill-exam-notes',
+    name: 'Exam Notes',
+    icon: '📚',
+    scope: 'page',
+    prompt: 'Generate clear, structured exam revision notes from this page. Include key concepts, core formulas/definitions, and 5 likely exam questions with concise answers.',
+  },
+  {
+    id: 'skill-hinglish-explain',
+    name: 'Explain in Hinglish',
+    icon: '🎓',
+    scope: 'page',
+    prompt: 'Explain the core content of this page in Hinglish (Hindi + English code-mix in Latin script) for a college student in simple, friendly terms.',
+  },
+  {
+    id: 'skill-reply-politely',
+    name: 'Reply Politely',
+    icon: '✉️',
+    scope: 'selection',
+    prompt: 'Draft a polite, constructive, and professional response to the selected message or email.',
+  },
+  {
+    id: 'skill-fill-profile',
+    name: 'Fill from Profile',
+    icon: '📋',
+    scope: 'agent',
+    prompt: 'Fill in the form fields on this page using the user profile information.',
+  },
+];
+
+/**
+ * Retrieves all saved skills, seeding with default skills if empty.
+ * @returns {Promise<Array>}
+ */
+export async function getSkills() {
+  try {
+    const res = await chrome.storage.local.get(STORAGE_KEYS.SAVED_SKILLS);
+    const skills = res[STORAGE_KEYS.SAVED_SKILLS];
+    if (Array.isArray(skills) && skills.length > 0) {
+      return skills;
+    }
+    // Seed with defaults
+    await chrome.storage.local.set({ [STORAGE_KEYS.SAVED_SKILLS]: DEFAULT_STARTER_SKILLS });
+    return DEFAULT_STARTER_SKILLS;
+  } catch (err) {
+    return DEFAULT_STARTER_SKILLS;
+  }
+}
+
+/**
+ * Saves the full skills list to storage.
+ * @param {Array} skills
+ */
+export async function saveSkills(skills = []) {
+  if (!Array.isArray(skills)) return;
+  await chrome.storage.local.set({ [STORAGE_KEYS.SAVED_SKILLS]: skills });
 }

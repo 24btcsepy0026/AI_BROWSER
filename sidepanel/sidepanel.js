@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Sahayak - Side Panel Application (sidepanel.js)
 // Controller for side panel views, quick actions, settings,
 // language toggle, and service worker communication.
@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMessageListener();
   initChatView();
   initScreenshotPanel();
+    initFindPanel();
+    initAgentView();
+    initSkillsView();
 
   // Edge-case 1.3: warn if on an internal Chrome page
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -166,10 +169,27 @@ let errorTimer = null;
 
 function initErrorBanner() {}
 
-export function showError(message) {
+export function showError(message, retryCallback = null) {
   const banner = document.getElementById('error-banner');
   if (!banner) return;
-  banner.textContent = message;
+  const textEl = document.getElementById('error-banner-text');
+  if (textEl) {
+    textEl.textContent = message;
+  } else {
+    banner.textContent = message;
+  }
+  const retryBtn = document.getElementById('error-retry-btn');
+  if (retryBtn) {
+    if (typeof retryCallback === 'function') {
+      retryBtn.classList.remove('hidden');
+      retryBtn.onclick = () => {
+        clearError();
+        retryCallback();
+      };
+    } else {
+      retryBtn.classList.add('hidden');
+    }
+  }
   banner.classList.remove('hidden');
   clearTimeout(errorTimer);
   errorTimer = setTimeout(() => {
@@ -309,14 +329,28 @@ function initMessageListener() {
         showApprovalCard(msg);
         break;
 
+      case 'AGENT_STATUS':
+        // Optional status updates
+        break;
+
+      case 'AGENT_LOG_UPDATE':
+        if (msg.logEntry) appendActionLogEntry(msg.logEntry);
+        break;
+
       case 'AGENT_BLOCKED':
-        showError(`Blocked: ${msg.reason}`);
+        showError(`Safety Block: ${msg.reason}`);
         hideApprovalCard();
         setLoading(false);
         break;
 
       case 'AGENT_DONE':
-        onAgentDone(msg.data);
+        onAgentDone(msg);
+        break;
+
+      case 'AGENT_STOPPED':
+        hideApprovalCard();
+        if (msg.logEntry) appendActionLogEntry(msg.logEntry);
+        showError('Agent task stopped by user.');
         break;
 
       case 'TAB_CHANGED':
@@ -358,14 +392,7 @@ function handleContextAction(payload) {
 }
 
 function appendChatChunk(chunk) {}
-function showApprovalCard(msg) {}
-function hideApprovalCard() {
-  document.getElementById('agent-approval-card')?.classList.add('hidden');
-}
-function onAgentDone(data) {
-  hideApprovalCard();
-  setLoading(false);
-}
+
 function onTabChanged() {
   state.chatHistory = [];
 }
@@ -426,10 +453,10 @@ async function handleSummarise() {
     // Hide welcome card
     document.getElementById('home-welcome')?.classList.add('hidden');
 
-    const prefix = response.isYouTube ? 'Ã°Å¸Å½Â¬ ' : 'Ã°Å¸â€œâ€ž ';
+    const prefix = response.isYouTube ? 'ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¬ ' : 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Å¾ ';
     const defaultTitle = response.isYouTube
-      ? (state.language === 'hinglish' ? 'Ã°Å¸Å½Â¬ YouTube Video Summary' : 'Ã°Å¸Å½Â¬ YouTube Summary')
-      : (state.language === 'hinglish' ? 'Ã°Å¸â€œâ€ž Article Summary (Hinglish)' : 'Ã°Å¸â€œâ€ž Article Summary');
+      ? (state.language === 'hinglish' ? 'ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¬ YouTube Video Summary' : 'ÃƒÂ°Ã…Â¸Ã…Â½Ã‚Â¬ YouTube Summary')
+      : (state.language === 'hinglish' ? 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Å¾ Article Summary (Hinglish)' : 'ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Å¾ Article Summary');
 
     const displayTitle = response.title ? `${prefix}${response.title}` : defaultTitle;
     showOutput(displayTitle, response.summary, { isYouTube: response.isYouTube, videoUrl: response.url });
@@ -445,7 +472,7 @@ async function handleScreenshot() { openScreenshotPanel(); }
 async function handleExplain() { await triggerContextAction('sahayak-explain', 'Explanation'); }
 async function handleTranslate() { await triggerContextAction('sahayak-translate', 'Translation'); }
 async function handleDraft() { await triggerContextAction('sahayak-draft', 'Draft Reply'); }
-async function handleFind()       { showError('Find It will be ready in Slice 3.2 Ã°Å¸â€Â'); }
+async function handleFind() { openFindPanel(); }
 async function handleChatSend() {
   const chatInput = document.getElementById('chat-input');
   const query = chatInput?.value?.trim();
@@ -470,14 +497,189 @@ async function handleChatSend() {
     if (state.chatHistory.length > 20) state.chatHistory = state.chatHistory.slice(-20);
   } catch (err) {
     removeTypingIndicator(typingId);
-    appendChatMessage('assistant', '⚠️ ' + (err.message || 'Could not answer. Please try again.'));
+    appendChatMessage('assistant', 'âš ï¸ ' + (err.message || 'Could not answer. Please try again.'));
   }
 }
-async function handleAgentStart() { showError('Agent Loop will be ready in Slice 3.3 Ã¢Å¡Â¡'); }
+// ============================================================
+// Agent Loop UI Controller (Slice 3.3 & Slice 3.4)
+// ============================================================
 
-async function sendAgentDecision(decision) {
-  await sendToSW('AGENT_DECISION', { decision }).catch(showError);
+async function handleAgentStart() {
+  const input = document.getElementById('agent-task-input');
+  const task = input?.value?.trim();
+  if (!task) {
+    showError('Please enter a task description for the agent.');
+    return;
+  }
+
+  clearError();
+  const startBtn = document.getElementById('agent-start-btn');
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.textContent = 'Starting...';
+  }
+
+  // Clear previous log and approval card
+  hideApprovalCard();
+  const logList = document.getElementById('action-log-list');
+  if (logList) logList.innerHTML = '';
+  document.getElementById('action-log-section')?.classList.add('hidden');
+
+  try {
+    const res = await sendToSW('START_AGENT_TASK', { task });
+    if (!res || !res.success) {
+      throw new Error(res?.error || 'Failed to start agent task.');
+    }
+  } catch (err) {
+    showError(err.message || 'Could not start agent.');
+  } finally {
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start';
+    }
+  }
 }
+
+async function sendAgentDecision(decision, confirmed = false) {
+  clearError();
+  try {
+    const res = await sendToSW('AGENT_DECISION', { decision, confirmed });
+    if (res && res.requiresExtraConfirm) {
+      document.getElementById('consequential-warning')?.classList.remove('hidden');
+      return;
+    }
+    if (res && res.isDryRun) {
+      showError('👁️ Dry Run: Target element highlighted on page.');
+      return;
+    }
+    if (!res || !res.success) {
+      throw new Error(res?.error || 'Failed to process decision.');
+    }
+    hideApprovalCard();
+  } catch (err) {
+    showError(err.message || 'Agent decision error.');
+  }
+}
+
+function showApprovalCard(data) {
+  const card = document.getElementById('agent-approval-card');
+  if (!card) return;
+
+  const stepBadge = document.getElementById('approval-step-label');
+  const actVal = document.getElementById('approval-action');
+  const targetVal = document.getElementById('approval-target');
+  const valVal = document.getElementById('approval-value');
+  const reasonVal = document.getElementById('approval-reason');
+  const warning = document.getElementById('consequential-warning');
+
+  const action = data.action || {};
+  if (stepBadge) stepBadge.textContent = `Step ${data.step || 1} of ${data.totalSteps || 20}`;
+  if (actVal) actVal.textContent = (action.action || '').toUpperCase();
+  if (targetVal) targetVal.textContent = data.targetDesc || (action.element ? `Element [${action.element}]` : '—');
+  if (valVal) valVal.textContent = action.value != null ? action.value : '—';
+  if (reasonVal) reasonVal.textContent = action.reason || '—';
+
+  if (data.requiresExtraConfirm) {
+    warning?.classList.remove('hidden');
+  } else {
+    warning?.classList.add('hidden');
+  }
+
+  card.classList.remove('hidden');
+}
+
+function hideApprovalCard() {
+  document.getElementById('agent-approval-card')?.classList.add('hidden');
+}
+
+function appendActionLogEntry(entry) {
+  const section = document.getElementById('action-log-section');
+  const list = document.getElementById('action-log-list');
+  if (!section || !list) return;
+
+  section.classList.remove('hidden');
+
+  const li = document.createElement('li');
+  li.className = 'log-entry';
+
+  const stepSpan = document.createElement('span');
+  stepSpan.className = 'log-step';
+  stepSpan.textContent = `Step ${entry.step || 1}`;
+
+  const actSpan = document.createElement('span');
+  actSpan.className = 'log-action';
+  actSpan.textContent = `${entry.action}${entry.element ? ' [' + entry.element + ']' : ''}`;
+
+  const reasonSpan = document.createElement('span');
+  reasonSpan.className = 'log-reason';
+  reasonSpan.textContent = entry.reason || (entry.value ? `value: "${entry.value}"` : '');
+
+  const decisionSpan = document.createElement('span');
+  decisionSpan.className = `log-decision log-decision-${entry.decision}`;
+  decisionSpan.textContent = entry.decision ? entry.decision.toUpperCase() : 'DONE';
+
+  li.appendChild(stepSpan);
+  li.appendChild(actSpan);
+  li.appendChild(reasonSpan);
+  li.appendChild(decisionSpan);
+
+  list.appendChild(li);
+  list.scrollTop = list.scrollHeight;
+}
+
+function onAgentDone(msg) {
+  hideApprovalCard();
+  setLoading(false);
+  const message = msg.message || 'Agent task complete!';
+  showError('✅ ' + message);
+
+  // If there's an actionLog in the state, make sure it is rendered
+  if (msg.data && msg.data.actionLog) {
+    const list = document.getElementById('action-log-list');
+    if (list) {
+      list.innerHTML = '';
+      msg.data.actionLog.forEach(appendActionLogEntry);
+    }
+  }
+}
+
+async function initAgentView() {
+  // Wire up extra confirmation button for consequential actions
+  document.getElementById('btn-confirm-approve')?.addEventListener('click', () => {
+    sendAgentDecision('approve', true);
+  });
+
+  // Check existing session state on load (Slice 3.4 Persistence)
+  try {
+    const res = await sendToSW('GET_AGENT_STATE');
+    if (res && res.success && res.state) {
+      const state = res.state;
+      if (state.task) {
+        const input = document.getElementById('agent-task-input');
+        if (input) input.value = state.task;
+      }
+
+      // Restore Action Log
+      if (state.actionLog && state.actionLog.length > 0) {
+        state.actionLog.forEach(appendActionLogEntry);
+      }
+
+      // Restore Approval Card if awaiting
+      if (state.status === 'awaiting_approval' && state.pendingAction) {
+        showApprovalCard({
+          step: state.stepIndex + 1,
+          totalSteps: state.stepLimit,
+          action: state.pendingAction,
+          targetDesc: state.pendingTargetDesc,
+          requiresExtraConfirm: state.requiresExtraConfirm,
+        });
+      }
+    }
+  } catch (err) {
+    // Ignore initial state error
+  }
+}
+
 // === Chat UI Helpers (Slice 2.1) ===
 
 function appendChatMessage(role, text) {
@@ -767,4 +969,456 @@ async function askAboutScreenshot() {
     }
     if (retryBtn) retryBtn.classList.remove('hidden');
   }
+}
+
+
+// ============================================================
+// Find It For Me Panel Controller (Slice 3.1 & 3.2)
+// ============================================================
+
+let lastFoundElementId = null;
+
+function openFindPanel() {
+  const panel = document.getElementById('find-panel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  const input = document.getElementById('find-input');
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+function initFindPanel() {
+  const panel = document.getElementById('find-panel');
+  const closeBtn = document.getElementById('find-close-btn');
+  const submitBtn = document.getElementById('find-submit-btn');
+  const input = document.getElementById('find-input');
+  const scanBtn = document.getElementById('find-scan-btn');
+  const clearBtn = document.getElementById('find-clear-btn');
+  const rehighlightBtn = document.getElementById('find-rehighlight-btn');
+  const loading = document.getElementById('find-loading');
+  const loadingText = document.getElementById('find-loading-text');
+  const resultCard = document.getElementById('find-result-card');
+  const mapSection = document.getElementById('find-map-section');
+  const mapText = document.getElementById('find-map-text');
+  const mapCount = document.getElementById('find-map-count');
+
+  // Close button
+  closeBtn?.addEventListener('click', () => {
+    panel?.classList.add('hidden');
+  });
+
+  // Re-highlight button
+  rehighlightBtn?.addEventListener('click', async () => {
+    if (lastFoundElementId) {
+      await sendToSW('HIGHLIGHT_PAGE_ELEMENT', { elementId: lastFoundElementId });
+    }
+  });
+
+  // Find & Highlight submit
+  async function triggerFind() {
+    const query = input?.value?.trim();
+    if (!query) {
+      showError('Please enter what you are looking for.');
+      return;
+    }
+    clearError();
+    resultCard?.classList.add('hidden');
+    if (loading) {
+      if (loadingText) loadingText.textContent = 'Scanning page & locating element...';
+      loading.classList.remove('hidden');
+    }
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+      const res = await sendToSW('FIND_ELEMENT', { query, language: state.language });
+      if (!res || !res.success) {
+        throw new Error(res?.error || 'Find It failed.');
+      }
+
+      if (res.element) {
+        lastFoundElementId = res.element;
+        const b = document.getElementById('find-result-badge');
+        const t = document.getElementById('find-result-tag');
+        const l = document.getElementById('find-result-label');
+        const r = document.getElementById('find-result-reason');
+
+        if (b) b.textContent = `[${res.element}]`;
+        if (t) t.textContent = `${res.tag}${res.type ? ` (${res.type})` : ''}`;
+        if (l) l.textContent = res.label || `Element [${res.element}]`;
+        if (r) r.textContent = res.reason;
+        resultCard?.classList.remove('hidden');
+      } else {
+        lastFoundElementId = null;
+        showError(res.reason || 'Sahayak could not find a matching element. Try rephrasing.');
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to locate element.');
+    } finally {
+      loading?.classList.add('hidden');
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  submitBtn?.addEventListener('click', triggerFind);
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      triggerFind();
+    }
+  });
+
+  // Scan & Show Badges
+  async function triggerScan() {
+    clearError();
+    if (loading) {
+      if (loadingText) loadingText.textContent = 'Scanning interactive elements...';
+      loading.classList.remove('hidden');
+    }
+    try {
+      const res = await sendToSW('SCAN_PAGE_ELEMENTS', { renderBadges: true });
+      if (!res || !res.success) throw new Error(res?.error || 'Scan failed.');
+
+      if (mapText && mapCount) {
+        mapCount.textContent = res.count || (res.elements ? res.elements.length : 0);
+        mapText.textContent = res.actionMapText || 'No interactive elements detected.';
+        mapSection?.classList.remove('hidden');
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to scan page elements.');
+    } finally {
+      loading?.classList.add('hidden');
+    }
+  }
+
+  scanBtn?.addEventListener('click', triggerScan);
+
+  // Clear Badges
+  clearBtn?.addEventListener('click', async () => {
+    try {
+      await sendToSW('CLEAR_ELEMENT_BADGES', {});
+      mapSection?.classList.add('hidden');
+      resultCard?.classList.add('hidden');
+      lastFoundElementId = null;
+    } catch (err) {
+      showError(err.message || 'Failed to clear badges.');
+    }
+  });
+
+  // Agent tab scan buttons (Slice 3.1)
+  const agentScanBtn = document.getElementById('btn-agent-scan');
+  const agentClearBtn = document.getElementById('btn-agent-clear-badges');
+  const agentResultsBox = document.getElementById('agent-scan-results');
+  const agentCountEl = document.getElementById('agent-scan-count');
+  const agentTextEl = document.getElementById('agent-scan-text');
+  const agentCloseBtn = document.getElementById('agent-scan-close-btn');
+
+  agentCloseBtn?.addEventListener('click', () => {
+    agentResultsBox?.classList.add('hidden');
+  });
+
+  agentScanBtn?.addEventListener('click', async () => {
+    clearError();
+    const originalText = agentScanBtn.textContent;
+    agentScanBtn.textContent = '⏳ Scanning...';
+    agentScanBtn.disabled = true;
+
+    try {
+      const res = await sendToSW('SCAN_PAGE_ELEMENTS', { renderBadges: true });
+      if (!res || !res.success) throw new Error(res?.error || 'Scan failed.');
+
+      if (agentCountEl) agentCountEl.textContent = res.count || (res.elements ? res.elements.length : 0);
+      if (agentTextEl) agentTextEl.textContent = res.actionMapText || 'No interactive elements detected.';
+      agentResultsBox?.classList.remove('hidden');
+    } catch (err) {
+      showError(err.message || 'Failed to scan page elements.');
+    } finally {
+      agentScanBtn.textContent = originalText;
+      agentScanBtn.disabled = false;
+    }
+  });
+
+  agentClearBtn?.addEventListener('click', async () => {
+    try {
+      await sendToSW('CLEAR_ELEMENT_BADGES', {});
+      agentResultsBox?.classList.add('hidden');
+      clearError();
+    } catch (err) {
+      showError(err.message || 'Failed to clear badges.');
+    }
+  });
+}
+
+
+// ============================================================
+// One-Click Skills Controller (Slice 4.2)
+// ============================================================
+
+let cachedSkills = [];
+
+async function loadAndRenderSkills() {
+  const listEl = document.getElementById('skills-list');
+  if (!listEl) return;
+
+  try {
+    const res = await sendToSW('GET_SKILLS');
+    cachedSkills = res?.skills || [];
+
+    listEl.innerHTML = '';
+
+    if (cachedSkills.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'skills-empty-state';
+      empty.textContent = 'No skills saved yet. Click + New to create your first one!';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    cachedSkills.forEach((skill) => {
+      const li = document.createElement('li');
+      li.className = 'skill-item';
+      li.dataset.skillId = skill.id;
+
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'skill-icon';
+      iconSpan.textContent = skill.icon || '⚡';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'skill-info';
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'skill-name';
+      nameDiv.textContent = skill.name;
+
+      const scopeDiv = document.createElement('div');
+      scopeDiv.className = 'skill-scope';
+      const promptSnippet = (skill.prompt || '').length > 40
+        ? (skill.prompt || '').substring(0, 40) + '...'
+        : (skill.prompt || '');
+      scopeDiv.textContent = `${(skill.scope || 'page').toUpperCase()} • ${promptSnippet}`;
+
+      infoDiv.appendChild(nameDiv);
+      infoDiv.appendChild(scopeDiv);
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'skill-actions';
+
+      const runBtn = document.createElement('button');
+      runBtn.className = 'skill-run-btn';
+      runBtn.textContent = 'Run';
+      runBtn.setAttribute('aria-label', `Run ${skill.name}`);
+      runBtn.addEventListener('click', () => runSkillItem(skill, runBtn));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'skill-delete-btn';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Delete skill';
+      delBtn.setAttribute('aria-label', `Delete ${skill.name}`);
+      delBtn.addEventListener('click', () => deleteSkillItem(skill.id));
+
+      actionsDiv.appendChild(runBtn);
+      actionsDiv.appendChild(delBtn);
+
+      li.appendChild(iconSpan);
+      li.appendChild(infoDiv);
+      li.appendChild(actionsDiv);
+
+      listEl.appendChild(li);
+    });
+  } catch (err) {
+    showError('Failed to load skills: ' + err.message);
+  }
+}
+
+async function runSkillItem(skill, btnEl) {
+  if (btnEl.disabled) return;
+  clearError();
+
+  const originalText = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = 'Running...';
+
+  try {
+    // Edge case 20.7: Check selection if scope is selection
+    if (skill.scope === 'selection') {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tab = tabs[0];
+      if (tab?.id) {
+        const selRes = await chrome.tabs.sendMessage(tab.id, { type: 'GET_SELECTION' }).catch(() => null);
+        if (!selRes || !selRes.text || !selRes.text.trim()) {
+          showError('Please select some text on the webpage before running this skill.');
+          return;
+        }
+      }
+    }
+
+    const res = await sendToSW('RUN_SKILL', { skill });
+    if (!res || !res.success) {
+      throw new Error(res?.error || 'Skill execution failed.');
+    }
+
+    if (res.scope === 'agent') {
+      // Switch to Agent tab so the user sees the workflow running
+      switchView('agent');
+      const input = document.getElementById('agent-task-input');
+      if (input) input.value = skill.prompt;
+    } else if (res.scope === 'page' || res.scope === 'selection') {
+      // Switch to Home tab and render the markdown output
+      switchView('home');
+      document.getElementById('home-welcome')?.classList.add('hidden');
+      showOutput(skill.name, res.result);
+    }
+  } catch (err) {
+    showError(err.message || 'Failed to run skill.');
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = originalText;
+  }
+}
+
+async function deleteSkillItem(skillId) {
+  cachedSkills = cachedSkills.filter((s) => s.id !== skillId);
+  try {
+    await sendToSW('SAVE_SKILLS', { skills: cachedSkills });
+    await loadAndRenderSkills();
+  } catch (err) {
+    showError('Failed to delete skill: ' + err.message);
+  }
+}
+
+function initSkillsView() {
+  loadAndRenderSkills();
+
+  const newBtn = document.getElementById('btn-new-skill');
+  const importBtn = document.getElementById('btn-import-skills');
+  const exportBtn = document.getElementById('btn-export-skills');
+  const fileInput = document.getElementById('skills-file-input');
+
+  const modal = document.getElementById('skill-modal');
+  const closeBtn = document.getElementById('skill-modal-close-btn');
+  const cancelBtn = document.getElementById('skill-cancel-btn');
+  const saveBtn = document.getElementById('skill-save-btn');
+
+  const nameInput = document.getElementById('skill-name-input');
+  const iconInput = document.getElementById('skill-icon-input');
+  const scopeSelect = document.getElementById('skill-scope-select');
+  const promptInput = document.getElementById('skill-prompt-input');
+
+  // Open modal
+  newBtn?.addEventListener('click', () => {
+    if (nameInput) nameInput.value = '';
+    if (iconInput) iconInput.value = '⚡';
+    if (scopeSelect) scopeSelect.value = 'page';
+    if (promptInput) promptInput.value = '';
+    modal?.classList.remove('hidden');
+    nameInput?.focus();
+  });
+
+  // Close modal
+  const closeModal = () => modal?.classList.add('hidden');
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+
+  // Save new skill
+  saveBtn?.addEventListener('click', async () => {
+    const name = nameInput?.value?.trim();
+    const prompt = promptInput?.value?.trim();
+    const icon = iconInput?.value?.trim() || '⚡';
+    const scope = scopeSelect?.value || 'page';
+
+    if (!name) {
+      showError('Please give your skill a name.');
+      nameInput?.focus();
+      return;
+    }
+    if (!prompt) {
+      showError('Please enter a prompt recipe for the skill.');
+      promptInput?.focus();
+      return;
+    }
+
+    const newSkill = {
+      id: 'skill-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      name,
+      icon,
+      scope,
+      prompt,
+    };
+
+    cachedSkills.push(newSkill);
+    try {
+      await sendToSW('SAVE_SKILLS', { skills: cachedSkills });
+      closeModal();
+      await loadAndRenderSkills();
+    } catch (err) {
+      showError('Failed to save skill: ' + err.message);
+    }
+  });
+
+  // Export Skills (JSON download)
+  exportBtn?.addEventListener('click', async () => {
+    try {
+      const res = await sendToSW('GET_SKILLS');
+      const skills = res?.skills || [];
+      const blob = new Blob([JSON.stringify(skills, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sahayak-skills.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showError('Failed to export skills: ' + err.message);
+    }
+  });
+
+  // Import Skills (JSON file upload)
+  importBtn?.addEventListener('click', () => {
+    if (fileInput) {
+      fileInput.value = '';
+      fileInput.click();
+    }
+  });
+
+  fileInput?.addEventListener('change', async (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      let imported = null;
+      try {
+        imported = JSON.parse(text);
+      } catch {
+        throw new Error('Invalid JSON format in the uploaded file.');
+      }
+
+      if (!Array.isArray(imported)) {
+        throw new Error('Skills file must contain an array of skills.');
+      }
+
+      // Merge and deduplicate by ID or name
+      const existingRes = await sendToSW('GET_SKILLS');
+      const existing = existingRes?.skills || [];
+      const skillMap = new Map();
+
+      existing.forEach((s) => skillMap.set(s.id || s.name, s));
+      imported.forEach((s) => {
+        if (s.name && s.prompt) {
+          const id = s.id || ('skill-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6));
+          skillMap.set(id, { ...s, id });
+        }
+      });
+
+      const merged = Array.from(skillMap.values());
+      await sendToSW('SAVE_SKILLS', { skills: merged });
+      await loadAndRenderSkills();
+      showError('✅ Successfully imported ' + imported.length + ' skills!');
+    } catch (err) {
+      showError('Import failed: ' + err.message);
+    }
+  });
 }

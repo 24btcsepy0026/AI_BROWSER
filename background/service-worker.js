@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // Sahayak - Background Service Worker
 // Entry point for all extension logic: message routing,
 // AI calls, agent loop, safety, and storage management.
@@ -14,9 +14,14 @@ import {
   saveAllSettings,
   getCachedItem,
   setCachedItem,
+  getSkills,
+  saveSkills,
+  getProfile,
+  saveProfile,
 } from './storage-manager.js';
 import { callModel } from './model-router.js';
-import { buildSummaryPrompt, buildYouTubePrompt, buildChatPrompt, buildContextActionPrompt } from './prompt-builder.js';
+import { startAgentTask, handleAgentDecision, loadAgentState, resetAgentState } from './agent-loop.js';
+import { buildSummaryPrompt, buildYouTubePrompt, buildChatPrompt, buildContextActionPrompt, buildElementSelectPrompt } from './prompt-builder.js';
 
 // Safe broadcast helper that prevents "Receiving end does not exist" warnings
 function safeBroadcastMessage(message) {
@@ -183,6 +188,78 @@ async function handleMessage(msg, sender) {
       return await handleScreenshotAsk(msg.payload);
     }
 
+    // Interactive Element Scanner & Badges (Slice 3.1)
+    case 'SCAN_PAGE_ELEMENTS': {
+      return await handleScanPageElements(msg.payload);
+    }
+
+    case 'CLEAR_ELEMENT_BADGES': {
+      return await handleClearElementBadges(msg.payload);
+    }
+
+    // Find It For Me (Slice 3.2)
+    case 'FIND_ELEMENT': {
+      return await handleFindElement(msg.payload);
+    }
+
+    case 'HIGHLIGHT_PAGE_ELEMENT': {
+      return await handleHighlightPageElement(msg.payload);
+    }
+
+    // Agent Loop State Machine (Slice 3.3 & Slice 3.4)
+    case 'START_AGENT_TASK': {
+      const targetTab = await findTargetTab(msg.payload?.tabId);
+      if (!targetTab || !targetTab.url) {
+        throw new Error('No active webpage found to execute agent task.');
+      }
+      if (isRestrictedUrl(targetTab.url)) {
+        throw new Error('Cannot run agent on Chrome internal pages.');
+      }
+      await ensureContentScriptsInTab(targetTab.id);
+      await startAgentTask(msg.payload?.task, targetTab.id);
+      return { success: true };
+    }
+
+    case 'AGENT_DECISION': {
+      return await handleAgentDecision(msg.payload);
+    }
+
+    case 'GET_AGENT_STATE': {
+      const state = await loadAgentState();
+      return { success: true, state };
+    }
+
+    case 'RESET_AGENT_STATE': {
+      const state = await resetAgentState();
+      return { success: true, state };
+    }
+
+    // Local User Profile (Slice 4.1)
+    case 'GET_PROFILE': {
+      const profile = await getProfile();
+      return { success: true, profile };
+    }
+
+    case 'SAVE_PROFILE': {
+      const updated = await saveProfile(msg.payload?.profile || {});
+      return { success: true, profile: updated };
+    }
+
+    // One-Click Skills (Slice 4.2)
+    case 'GET_SKILLS': {
+      const skills = await getSkills();
+      return { success: true, skills };
+    }
+
+    case 'SAVE_SKILLS': {
+      await saveSkills(msg.payload?.skills || []);
+      return { success: true };
+    }
+
+    case 'RUN_SKILL': {
+      return await handleRunSkill(msg.payload);
+    }
+
         // case 'SUMMARISE_YOUTUBE': return handleYouTubeSummarise(msg.payload);
 
     default:
@@ -227,6 +304,33 @@ async function findTargetTab(requestedTabId = null) {
   }
 
   return null;
+}
+
+async function ensureContentScriptsInTab(targetTabId) {
+  try {
+    const check = await chrome.tabs.sendMessage(targetTabId, { type: 'CHECK_SCANNER' });
+    if (check && check.ready) return true;
+  } catch (e) {
+    // Need injection
+  }
+
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: targetTabId },
+      files: [
+        'lib/Readability.js',
+        'content/readability-wrapper.js',
+        'content/element-scanner.js',
+        'content/element-badges.js',
+        'content/action-executor.js',
+        'content/content-script.js'
+      ],
+    });
+    return true;
+  } catch (err) {
+    console.error('[Sahayak SW] Dynamic script injection failed:', err);
+    throw new Error('Failed to initialize page scripts: ' + err.message);
+  }
 }
 
 async function extractContentFromTab(tabId = null) {
@@ -582,3 +686,218 @@ async function handleScreenshotAsk(payload = {}) {
 }
 
 globalThis.handleScreenshotAsk = handleScreenshotAsk;
+
+
+
+// ============================================================
+// Interactive Element Scanner & Badges Handler (Slice 3.1)
+// ============================================================
+async function handleScanPageElements(payload = {}) {
+  const targetTab = await findTargetTab(payload.tabId);
+  if (!targetTab || !targetTab.url) {
+    throw new Error('No active webpage found to scan. Please navigate to a webpage first.');
+  }
+  if (isRestrictedUrl(targetTab.url)) {
+    throw new Error('Cannot scan elements on Chrome internal or system pages (chrome://).');
+  }
+
+  await ensureContentScriptsInTab(targetTab.id);
+
+  const res = await chrome.tabs.sendMessage(targetTab.id, {
+    type: 'SCAN_ELEMENTS',
+    payload: { renderBadges: payload.renderBadges !== false }
+  });
+
+  return res || { success: false, error: 'Failed to scan page elements.' };
+}
+
+async function handleClearElementBadges(payload = {}) {
+  const targetTab = await findTargetTab(payload.tabId);
+  if (!targetTab || !targetTab.id) return { success: true };
+  try {
+    await chrome.tabs.sendMessage(targetTab.id, { type: 'CLEAR_BADGES' });
+  } catch (e) {
+    // Ignore if tab closed or reloaded
+  }
+  return { success: true };
+}
+
+async function handleHighlightPageElement(payload = {}) {
+  const targetTab = await findTargetTab(payload.tabId);
+  if (!targetTab || !targetTab.id) throw new Error('No active webpage found.');
+  const res = await chrome.tabs.sendMessage(targetTab.id, {
+    type: 'HIGHLIGHT_ELEMENT',
+    elementId: payload.elementId
+  });
+  return res || { success: false };
+}
+
+// ============================================================
+// Find It For Me Handler (Slice 3.2)
+// ============================================================
+async function handleFindElement(payload = {}) {
+  const { query, language, tabId } = payload;
+  if (!query || !query.trim()) {
+    throw new Error('Please enter a description of what you are looking for.');
+  }
+
+  const targetTab = await findTargetTab(tabId);
+  if (!targetTab || !targetTab.url) {
+    throw new Error('No active webpage found.');
+  }
+  if (isRestrictedUrl(targetTab.url)) {
+    throw new Error('Cannot locate elements on Chrome internal or system pages.');
+  }
+
+  await ensureContentScriptsInTab(targetTab.id);
+
+  // 1. Scan page elements and render badges
+  const scanRes = await chrome.tabs.sendMessage(targetTab.id, {
+    type: 'SCAN_ELEMENTS',
+    payload: { renderBadges: true }
+  });
+
+  if (!scanRes || !scanRes.success || !scanRes.elements || scanRes.elements.length === 0) {
+    return {
+      success: false,
+      error: 'No interactive elements found on this page.'
+    };
+  }
+
+  // 2. Build element selection prompt
+  const prompt = buildElementSelectPrompt(scanRes.actionMapText, query.trim());
+
+  // 3. Call AI model
+  const rawResponse = await callModel({ prompt, model: 'flash' });
+
+  // 4. Parse model response JSON
+  let parsed = null;
+  try {
+    const cleaned = rawResponse
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      parsed = JSON.parse(jsonMatch[0]);
+    } else {
+      parsed = JSON.parse(cleaned);
+    }
+  } catch (err) {
+    console.warn('[Sahayak SW] Failed to parse model JSON for element selection:', rawResponse, err);
+    throw new Error('Could not parse model response. Please try rephrasing your search.');
+  }
+
+  // 5. Validate & Highlight
+  if (parsed && typeof parsed.element === 'number' && parsed.element > 0) {
+    const elNum = parsed.element;
+    const targetElement = scanRes.elements.find(e => e.id === elNum);
+
+    if (targetElement) {
+      // Highlight on live webpage
+      await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'HIGHLIGHT_ELEMENT',
+        elementId: elNum
+      });
+
+      return {
+        success: true,
+        element: elNum,
+        reason: parsed.reason || 'Found matching element on the page.',
+        label: targetElement.label,
+        tag: targetElement.tag,
+        type: targetElement.type,
+        totalElements: scanRes.elements.length
+      };
+    } else {
+      return {
+        success: true,
+        element: null,
+        reason: 'Sahayak could not find a matching element on the page. Try rephrasing.'
+      };
+    }
+  }
+
+  return {
+    success: true,
+    element: null,
+    reason: parsed?.reason || 'Sahayak could not find a matching element. Try rephrasing.'
+  };
+}
+
+globalThis.handleScanPageElements = handleScanPageElements;
+globalThis.handleClearElementBadges = handleClearElementBadges;
+globalThis.handleHighlightPageElement = handleHighlightPageElement;
+globalThis.handleFindElement = handleFindElement;
+
+// Agent state recovery on browser startup (Slice 3.4)
+chrome.runtime.onStartup.addListener(async () => {
+  const state = await loadAgentState();
+  if (state.status === 'awaiting_approval' && state.pendingAction) {
+    safeBroadcastMessage({
+      type: 'AWAITING_APPROVAL',
+      step: state.stepIndex + 1,
+      totalSteps: state.stepLimit,
+      action: state.pendingAction,
+      targetDesc: state.pendingTargetDesc,
+      requiresExtraConfirm: state.requiresExtraConfirm,
+    });
+  }
+});
+
+// ============================================================
+// One-Click Skills Runner (Slice 4.2)
+// ============================================================
+async function handleRunSkill(payload = {}) {
+  const { skill, tabId } = payload;
+  if (!skill || !skill.prompt) {
+    throw new Error('Invalid skill definition.');
+  }
+
+  const targetTab = await findTargetTab(tabId);
+  if (!targetTab || !targetTab.url) {
+    throw new Error('No active webpage found.');
+  }
+  if (isRestrictedUrl(targetTab.url)) {
+    throw new Error('Skills cannot run on Chrome internal or system pages.');
+  }
+
+  const scope = skill.scope || 'page';
+
+  // 1. Selection Scope
+  if (scope === 'selection') {
+    let selText = payload.selectionText;
+    if (!selText) {
+      await ensureContentScriptsInTab(targetTab.id);
+      const selRes = await chrome.tabs.sendMessage(targetTab.id, { type: 'GET_SELECTION' }).catch(() => null);
+      selText = selRes?.text?.trim();
+    }
+    if (!selText) {
+      return { success: false, error: 'Please select some text on the webpage before running this skill.' };
+    }
+
+    const prompt = `You are Sahayak. ${skill.prompt}\n\nSelected text:\n"""\n${selText}\n"""`;
+    const result = await callModel({ prompt, model: 'flash-lite' });
+    return { success: true, scope: 'selection', result, skillName: skill.name };
+  }
+
+  // 2. Agent Scope
+  if (scope === 'agent') {
+    await ensureContentScriptsInTab(targetTab.id);
+    await startAgentTask(skill.prompt, targetTab.id);
+    return { success: true, scope: 'agent', message: 'Agent task started for skill: ' + skill.name };
+  }
+
+  // 3. Page Scope
+  await ensureContentScriptsInTab(targetTab.id);
+  const contentRes = await extractContentFromTab(targetTab.id);
+  if (!contentRes || !contentRes.success || !contentRes.data) {
+    throw new Error('Failed to extract page content for skill execution.');
+  }
+  const pageText = (contentRes.data.text || '').substring(0, 12000);
+  const prompt = `You are Sahayak, an AI browser assistant.\nTask/Skill: "${skill.prompt}"\n\nPage Content:\n"""\n${pageText}\n"""\n\nProvide the response clearly and concisely:`;
+  const result = await callModel({ prompt, model: 'flash-lite' });
+  return { success: true, scope: 'page', result, skillName: skill.name };
+}
+
+globalThis.handleRunSkill = handleRunSkill;
