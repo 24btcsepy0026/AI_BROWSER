@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Sahayak - Element Scanner (content/element-scanner.js)
 // Slice 3.1: Interactive Element Scanner
 // Scans DOM and builds a numbered action map.

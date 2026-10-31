@@ -1,8 +1,8 @@
-﻿{
+{
   "manifest_version": 3,
   "name": "Sahayak",
   "description": "Your AI browser assistant - read, chat, see, and act on any webpage.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "permissions": [
     "activeTab",
     "scripting",

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Sahayak - Prompt Builder (background/prompt-builder.js)
 // Constructs structured prompts for all AI tasks.
 // Handles language preferences: English, Hinglish, & Tanglish (TAN).

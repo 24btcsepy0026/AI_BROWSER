@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Sahayak - Content Script (content/content-script.js)
 // Injected into web pages by the service worker on demand.
 // Listens for messages and delegates to readability-wrapper.js

@@ -26,6 +26,94 @@ export const DEFAULT_STATE = {
 };
 
 /**
+ * Loads current agent state from session storage.
+ */
+export async function loadAgentState() {
+  try {
+    const res = await chrome.storage.session.get('agentState');
+    return { ...DEFAULT_STATE, ...(res?.agentState || {}) };
+  } catch (err) {
+    return { ...DEFAULT_STATE };
+  }
+}
+
+/**
+ * Updates agent state in session storage.
+ */
+export async function updateAgentState(updates) {
+  const current = await loadAgentState();
+  const next = { ...current, ...updates };
+  try {
+    await chrome.storage.session.set({ agentState: next });
+  } catch (err) {
+    console.warn('[Sahayak Agent] Failed to save session state:', err);
+  }
+  return next;
+}
+
+/**
+ * Resets agent state to idle.
+ */
+export async function resetAgentState() {
+  return await updateAgentState({
+    ...DEFAULT_STATE,
+    status: 'idle',
+    pendingAction: null,
+    actionLog: [],
+    elementSnapshot: [],
+  });
+}
+
+/**
+ * Broadcasts an agent event to sidepanel or any listening extension view.
+ */
+function notifySidePanel(message) {
+  try {
+    chrome.runtime.sendMessage(message, () => {
+      if (chrome.runtime.lastError) {
+        // Ignored: side panel may be closed
+      }
+    });
+  } catch (e) {}
+}
+
+/**
+ * Parses and validates raw AI response JSON.
+ */
+export function validateAgentAction(raw) {
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Empty response received from AI model.');
+  }
+
+  const cleaned = raw
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  let parsed = null;
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  try {
+    parsed = JSON.parse(match ? match[0] : cleaned);
+  } catch (err) {
+    throw new Error('Failed to parse model action JSON: ' + cleaned.substring(0, 100));
+  }
+
+  const allowed = ['click', 'type', 'select', 'scroll', 'done'];
+  const actionName = String(parsed.action || '').toLowerCase().trim();
+
+  if (!allowed.includes(actionName)) {
+    throw new Error(`Invalid action "${actionName}". Expected one of: ${allowed.join(', ')}`);
+  }
+
+  return {
+    action: actionName,
+    element: parsed.element != null ? Number(parsed.element) : null,
+    value: parsed.value != null ? String(parsed.value) : null,
+    reason: parsed.reason ? String(parsed.reason).trim() : 'Advancing task step.',
+  };
+}
+
+/**
  * Starts a new agent task from user input.
  */
 export async function startAgentTask(task, tabId) {
@@ -60,7 +148,7 @@ export async function startAgentTask(task, tabId) {
   });
 
   notifySidePanel({ type: 'AGENT_STARTED', task: task.trim() });
-  await runNextStep(tabId);
+  runNextStep(tabId);
 }
 
 /**

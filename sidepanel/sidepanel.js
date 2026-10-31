@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Sahayak - Side Panel Application (sidepanel.js)
 // Controller for side panel views, quick actions, settings,
 // language toggle, and service worker communication.

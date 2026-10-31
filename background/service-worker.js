@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Sahayak - Background Service Worker
 // Entry point for all extension logic: message routing,
 // AI calls, agent loop, safety, and storage management.
