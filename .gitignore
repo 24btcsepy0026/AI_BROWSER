@@ -28,6 +28,7 @@ desktop.ini
 dist/
 build/
 *.zip
+!landing/*.zip
 
 # ── Keep docs, assets, and source ───────────────────────────
 !docs/
