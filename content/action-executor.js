@@ -66,6 +66,10 @@ async function executeAction(action, elements = []) {
     }
 
     case 'type': {
+      // Layer 2 DOM defense: verify not sensitive field
+      if (target.type === 'password' || /otp|password|pin|cvv|cvc/i.test(target.name || '') || /otp|password|pin|cvv|cvc/i.test(target.getAttribute('aria-label') || '')) {
+        return { success: false, error: 'Blocked by safety rails: cannot type into password or credential fields.' };
+      }
       if (target.disabled || target.readOnly) {
         return { success: false, error: `Element [${action.element}] is not editable.` };
       }

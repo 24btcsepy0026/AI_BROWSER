@@ -9,6 +9,7 @@
 
 import { callModel } from './model-router.js';
 import { getProfile } from './storage-manager.js';
+import { checkActionSafety, isBlockedDomain } from './safety.js';
 import { buildActionMapPrompt } from './prompt-builder.js';
 
 export const DEFAULT_STATE = {
@@ -25,156 +26,6 @@ export const DEFAULT_STATE = {
 };
 
 /**
- * Loads current agent state from session storage.
- */
-export async function loadAgentState() {
-  try {
-    const res = await chrome.storage.session.get('agentState');
-    return { ...DEFAULT_STATE, ...(res?.agentState || {}) };
-  } catch (err) {
-    return { ...DEFAULT_STATE };
-  }
-}
-
-/**
- * Updates agent state in session storage.
- */
-export async function updateAgentState(updates) {
-  const current = await loadAgentState();
-  const next = { ...current, ...updates };
-  try {
-    await chrome.storage.session.set({ agentState: next });
-  } catch (err) {
-    console.warn('[Sahayak Agent] Failed to save session state:', err);
-  }
-  return next;
-}
-
-/**
- * Resets agent state to idle.
- */
-export async function resetAgentState() {
-  return await updateAgentState({
-    ...DEFAULT_STATE,
-    status: 'idle',
-    pendingAction: null,
-    actionLog: [],
-    elementSnapshot: [],
-  });
-}
-
-/**
- * Broadcasts an agent event to sidepanel or any listening extension view.
- */
-function notifySidePanel(message) {
-  try {
-    chrome.runtime.sendMessage(message, () => {
-      if (chrome.runtime.lastError) {
-        // Ignored: side panel may be closed
-      }
-    });
-  } catch (e) {}
-}
-
-/**
- * Parses and validates raw AI response JSON.
- */
-export function validateAgentAction(raw) {
-  if (!raw || typeof raw !== 'string') {
-    throw new Error('Empty response received from AI model.');
-  }
-
-  const cleaned = raw
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/g, '')
-    .trim();
-
-  let parsed = null;
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  try {
-    parsed = JSON.parse(match ? match[0] : cleaned);
-  } catch (err) {
-    throw new Error('Failed to parse model action JSON: ' + cleaned.substring(0, 100));
-  }
-
-  const allowed = ['click', 'type', 'select', 'scroll', 'done'];
-  const actionName = String(parsed.action || '').toLowerCase().trim();
-
-  if (!allowed.includes(actionName)) {
-    throw new Error(`Invalid agent action "${actionName}". Must be one of: ${allowed.join(', ')}`);
-  }
-
-  let elementNum = null;
-  if (parsed.element !== null && parsed.element !== undefined) {
-    const n = Number(parsed.element);
-    if (!isNaN(n)) elementNum = n;
-  }
-
-  return {
-    action: actionName,
-    element: elementNum,
-    value: parsed.value != null ? String(parsed.value) : null,
-    reason: parsed.reason ? String(parsed.reason).trim() : 'Proceeding with task step.',
-  };
-}
-
-/**
- * Checks safety guardrails for a proposed action.
- * - Blocks password and credential fields
- * - Blocks credit card numbers
- * - Requires extra confirmation for consequential actions (submit, pay, delete)
- */
-export function checkActionSafety(action, elements = []) {
-  if (action.action === 'done' || action.action === 'scroll') {
-    return { allowed: true, requiresExtraConfirm: false };
-  }
-
-  const targetEl = elements.find((e) => e.id === action.element);
-
-  // 1. Credential & Password Guardrails (Edge case 15.4 & 21.3)
-  if (targetEl) {
-    const isPasswordType = targetEl.type === 'password';
-    const sensitivePattern = /password|passcode|secret|pin|otp|cvv|security.code/i;
-    const isSensitiveField =
-      isPasswordType ||
-      sensitivePattern.test(targetEl.label || '') ||
-      sensitivePattern.test(targetEl.type || '');
-
-    if (isSensitiveField) {
-      return {
-        allowed: false,
-        reason: 'Blocked for safety: Sahayak cannot enter or interact with password and credential fields.',
-      };
-    }
-  }
-
-  // 2. Credit Card Number Guardrail (Edge case 21.8)
-  if (action.action === 'type' && action.value) {
-    const rawVal = String(action.value).replace(/\s+|-/g, '');
-    if (/^\d{13,19}$/.test(rawVal)) {
-      return {
-        allowed: false,
-        reason: 'Blocked for safety: Detection of payment or card number entry.',
-      };
-    }
-  }
-
-  // 3. Consequential Actions Detection (Edge case 16.5 & 21.5)
-  let requiresExtraConfirm = false;
-  if (targetEl) {
-    const consequentialPattern = /submit|pay|purchase|place.order|checkout|confirm|delete|transfer|send.payment/i;
-    const isSubmitType = targetEl.type === 'submit';
-    const isConsequential = isSubmitType || consequentialPattern.test(targetEl.label || '');
-
-    if (isConsequential && action.action === 'click') {
-      requiresExtraConfirm = true;
-    }
-  }
-
-  return { allowed: true, requiresExtraConfirm };
-}
-
-/**
  * Starts a new agent task from user input.
  */
 export async function startAgentTask(task, tabId) {
@@ -185,6 +36,14 @@ export async function startAgentTask(task, tabId) {
   const currentState = await loadAgentState();
   if (currentState.status === 'awaiting_approval' || currentState.status === 'planning') {
     throw new Error('An agent task is already in progress. Stop or approve the current action first.');
+  }
+
+  let tabObj = null;
+  try {
+    tabObj = await chrome.tabs.get(tabId);
+  } catch {}
+  if (tabObj && tabObj.url && isBlockedDomain(tabObj.url)) {
+    throw new Error('Sahayak cannot run on banking or payment websites for your safety.');
   }
 
   await updateAgentState({
@@ -298,7 +157,12 @@ export async function runNextStep(tabId) {
   }
 
   // 5. Safety Guardrails Check (Slice 3.4 & Section 21)
-  const safety = checkActionSafety(action, scanRes.elements);
+  let tabUrl = '';
+  try {
+    const tabObj = await chrome.tabs.get(tabId);
+    tabUrl = tabObj?.url || '';
+  } catch {}
+  const safety = checkActionSafety(action, scanRes.elements, tabUrl);
   if (!safety.allowed) {
     await updateAgentState({ status: 'stopped' });
     notifySidePanel({ type: 'AGENT_BLOCKED', reason: safety.reason });

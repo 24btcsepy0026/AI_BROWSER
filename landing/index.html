@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahayak — Your AI Browser Assistant (Read, Chat, See, Act)</title>
+  <meta name="description" content="Sahayak is an AI browser assistant for Chrome. Summarise articles, parse YouTube videos with timestamps, chat with page grounding, analyze screenshots, and run autonomous agents with human approval." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="../assets/icons/icon48.png" />
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <img src="../assets/icons/icon48.png" alt="Sahayak Logo" class="brand-logo" />
+        <span class="brand-name">Sahayak</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#safety">Safety</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com" target="_blank" class="nav-btn-secondary">GitHub</a>
+        <a href="../sahayak-v1.0.0.zip" download="sahayak-v1.0.0.zip" class="nav-btn-primary">Download v1.0.0</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-container">
+      <div class="hero-badge">⚡ Powered by Gemini 2.5 Flash &amp; Chrome Manifest V3</div>
+      <h1 class="hero-title">Your AI Browser Assistant.<br /><span class="gradient-text">Read. Chat. See. Act.</span></h1>
+      <p class="hero-subtitle">
+        Understand complex articles, extract interactive YouTube timestamps, ask visual questions on charts, and let AI fill forms safely—with your explicit approval at every step.
+      </p>
+      <div class="hero-actions">
+        <a href="../sahayak-v1.0.0.zip" download="sahayak-v1.0.0.zip" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Extension (v1.0.0)
+        </a>
+        <a href="#install" class="btn btn-secondary">Installation Guide (4 Steps)</a>
+      </div>
+      <div class="hero-tagline">100% Free &amp; Open Source • Privacy-First • No Tracking • Device-Only Memory</div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section id="features" class="features-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Everything You Need In One Side Panel</h2>
+        <p class="section-subtitle">Designed from the ground up to respect your time, attention, and privacy.</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="feature-icon">📄</div>
+          <h3 class="feature-title">Smart Summarisation &amp; YouTube</h3>
+          <p class="feature-desc">
+            Mozilla Readability extracts clutter-free text for structured TL;DRs and actionable points. YouTube watch pages get chapter notes with clickable timestamps that seek the video instantly.
+          </p>
+          <div class="feature-badge">EN / Hinglish / Tanglish</div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <h3 class="feature-title">Strictly Grounded Chat</h3>
+          <p class="feature-desc">
+            Chat with the active page with strict grounding rails. If an answer cannot be verified directly from page content, Sahayak explicitly refuses to hallucinate external claims.
+          </p>
+          <div class="feature-badge">Zero Hallucinations</div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card">
+          <div class="feature-icon">📸</div>
+          <h3 class="feature-title">Screenshot Vision &amp; Crop</h3>
+          <p class="feature-desc">
+            Capture visible browser tabs or drag-to-crop any region (charts, code snippets, error traces) and query Google Gemini 2.5 Flash for instant multimodal insights.
+          </p>
+          <div class="feature-badge">Canvas Crop Tool</div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3 class="feature-title">Human-in-the-Loop Agent</h3>
+          <p class="feature-desc">
+            Number every interactive button, input, and link on the page. Sahayak proposes single actions one-at-a-time for your explicit Approve, Skip, Dry Run, or Stop decision.
+          </p>
+          <div class="feature-badge">Approve / Skip / Stop</div>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3 class="feature-title">One-Click Prompt Skills</h3>
+          <p class="feature-desc">
+            Pre-built recipes like Exam Notes, Explain in Hinglish, and Reply Politely. Create your own reusable skills with custom scopes and export/import via standard JSON.
+          </p>
+          <div class="feature-badge">JSON Export / Import</div>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon">👤</div>
+          <h3 class="feature-title">Local Profile Memory</h3>
+          <p class="feature-desc">
+            Store your name, college, skills, and links strictly on your device. Sahayak uses this memory to auto-fill repetitive applications and tailor personalized draft responses.
+          </p>
+          <div class="feature-badge">Device-Only Storage</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Safety Rails -->
+  <section id="safety" class="safety-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">8-Layer Code-Enforced Safety Rails</h2>
+        <p class="section-subtitle">No model instruction can override our code-level safeguards.</p>
+      </div>
+
+      <div class="safety-grid">
+        <div class="safety-item">
+          <span class="safety-num">1</span>
+          <div>
+            <h4>Domain Blocklist</h4>
+            <p>Automatic block on banking, netbanking, and payment domains.</p>
+          </div>
+        </div>
+        <div class="safety-item">
+          <span class="safety-num">2</span>
+          <div>
+            <h4>Credential Shield</h4>
+            <p>Hard-blocked interactions with password, PIN, OTP, and card fields.</p>
+          </div>
+        </div>
+        <div class="safety-item">
+          <span class="safety-num">3</span>
+          <div>
+            <h4>Second Confirmation</h4>
+            <p>Mandatory extra approval before clicking Submit, Pay, or Delete buttons.</p>
+          </div>
+        </div>
+        <div class="safety-item">
+          <span class="safety-num">4</span>
+          <div>
+            <h4>Kill Switch</h4>
+            <p>An instant Stop button halts execution loops and clears page badges.</p>
+          </div>
+        </div>
+        <div class="safety-item">
+          <span class="safety-num">5</span>
+          <div>
+            <h4>Dry Run Inspection</h4>
+            <p>Preview proposed targets with pulsing highlights without firing events.</p>
+          </div>
+        </div>
+        <div class="safety-item">
+          <span class="safety-num">6</span>
+          <div>
+            <h4>Step Limit Cap</h4>
+            <p>Hard cap of 20 steps to permanently prevent runaway autonomous tasks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3-Step Installation -->
+  <section id="install" class="install-section">
+    <div class="container">
+      <div class="section-header">
+        <h2 class="section-title">Install In Under 5 Minutes</h2>
+        <p class="section-subtitle">No build tools or command line required. Works in any Chromium browser.</p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3 class="step-title">Download &amp; Unzip</h3>
+          <p class="step-desc">Download <a href="../sahayak-v1.0.0.zip" download>sahayak-v1.0.0.zip</a> and extract the folder onto your computer.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3 class="step-title">Open Chrome Extensions</h3>
+          <p class="step-desc">Navigate to <code>chrome://extensions</code> and toggle <strong>Developer mode</strong> in the top-right to ON.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3 class="step-title">Load Unpacked</h3>
+          <p class="step-desc">Click <strong>Load unpacked</strong> in the top-left and select the extracted Sahayak directory.</p>
+        </div>
+      </div>
+
+      <div class="install-cta">
+        <a href="../sahayak-v1.0.0.zip" download="sahayak-v1.0.0.zip" class="btn btn-primary">Download sahayak-v1.0.0.zip</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-content">
+      <div class="footer-brand">
+        <img src="../assets/icons/icon48.png" alt="" />
+        <span>Sahayak v1.0.0</span>
+      </div>
+      <p class="footer-copy">Crafted for privacy, agency, and efficiency. MIT License.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

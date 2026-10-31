@@ -579,10 +579,19 @@ function showApprovalCard(data) {
   if (valVal) valVal.textContent = action.value != null ? action.value : '—';
   if (reasonVal) reasonVal.textContent = action.reason || '—';
 
+  const btnApprove = document.getElementById('btn-approve');
   if (data.requiresExtraConfirm) {
     warning?.classList.remove('hidden');
+    if (btnApprove) {
+      btnApprove.disabled = true;
+      btnApprove.title = 'Please click Confirm Proceed below for consequential action';
+    }
   } else {
     warning?.classList.add('hidden');
+    if (btnApprove) {
+      btnApprove.disabled = false;
+      btnApprove.title = '';
+    }
   }
 
   card.classList.remove('hidden');
@@ -590,6 +599,12 @@ function showApprovalCard(data) {
 
 function hideApprovalCard() {
   document.getElementById('agent-approval-card')?.classList.add('hidden');
+  const btnApprove = document.getElementById('btn-approve');
+  if (btnApprove) {
+    btnApprove.disabled = false;
+    btnApprove.title = '';
+  }
+  document.getElementById('consequential-warning')?.classList.add('hidden');
 }
 
 function appendActionLogEntry(entry) {
